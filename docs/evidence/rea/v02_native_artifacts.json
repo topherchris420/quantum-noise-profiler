@@ -1,0 +1,55 @@
+{
+ "tool": "rea-agents 6.4.0 (CLI, npm, installed in an isolated scratch prefix; 'setup' not run)",
+ "host": "Linux x86-64, Node 22.22.0, Java 21.0.12.1; Ghidra not configured; pwntools 4.15.0 env supplied via REA_PWNTOOLS_PYTHON",
+ "artifacts": {
+  "controller_wrappers.cpython-313-x86_64-linux-gnu.so": {
+   "inspect_artifact_evidence_id": "ev_be71f85337245ea5a738962b675b73b83294ed8758c875ed13ad2b48400d1185",
+   "inspect_binary_layout_evidence_id": "ev_9db05c5581848ea7477806e9521b1ab837589029e726b208eac5c2107ab239e2",
+   "sha256": "5209ab2b572ca15c0eace80c1a2289d5f4d8942fb8ef21f862cb173608f88178",
+   "format": "elf",
+   "needed_libraries": [
+    "libopenblas-r0-f650aae0.3.3.so",
+    "libdl.so.2",
+    "libpthread.so.0",
+    "libstdc++.so.6",
+    "libm.so.6",
+    "libgomp-a34b3233.so.1.0.0",
+    "libgcc_s.so.1",
+    "libc.so.6",
+    "ld-linux-x86-64.so.2"
+   ],
+   "image_type": "ET_DYN",
+   "mitigations": {
+    "evidence_kind": "inferred",
+    "position_independent": true,
+    "nx_indicator": true,
+    "executable_stack_indicator": false,
+    "stack_canary_indicator": true,
+    "relro": "Partial"
+   }
+  },
+  "_accelerate.abi3.so": {
+   "inspect_artifact_evidence_id": "ev_e703af9ba2af91a742a65b2a7a044419d736b9f9ed259dfef19f57637e294bce",
+   "inspect_binary_layout_evidence_id": "ev_dd92c7d12e7519a4a9182f3efdfbe1c1a4dc67b242aeaccf4961ec645d7e7e09",
+   "sha256": "0c1170ace3a0eec72149a86b061addcbedde6a251306a88195b6a4acb761c214",
+   "format": "elf",
+   "needed_libraries": [
+    "libgcc_s.so.1",
+    "libpthread.so.0",
+    "libm.so.6",
+    "libdl.so.2",
+    "libc.so.6",
+    "ld-linux-x86-64.so.2"
+   ],
+   "image_type": "ET_DYN",
+   "mitigations": {
+    "evidence_kind": "inferred",
+    "position_independent": true,
+    "nx_indicator": true,
+    "executable_stack_indicator": false,
+    "stack_canary_indicator": false,
+    "relro": "Full"
+   }
+  }
+ }
+}
