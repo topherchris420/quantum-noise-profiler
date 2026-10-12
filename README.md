@@ -67,7 +67,7 @@ Pass the **executed (ISA) circuits** so qubit indices are physical.
 Three preregistered simulator experiments (gradual drift, sudden degradation,
 insufficient evidence). Criteria are in `experiments/PREREGISTRATION.md`,
 committed before any run. All runs, including failures, are in
-`results/runs.jsonl`; `results/SUMMARY.md` gives the current status.
+`results/runs.jsonl`. **v0.1 passed 8 of 14 criteria**: abstention and interval calibration held; continuous-monitoring false alarms and misspecified T1 fits failed. See [`results/SUMMARY.md`](results/SUMMARY.md).
 
 ## Limitations
 - Simulator-only validation so far; readout error was the only injected noise.
