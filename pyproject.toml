@@ -41,6 +41,7 @@ ignore = ["E731", "B008", "B023", "RUF012", "RUF015", "UP007", "B905"]
 
 [tool.ruff.lint.per-file-ignores]
 "experiments/*" = ["E402", "E501"]
+"tools/*" = ["E501"]
 "tests/*" = ["E702", "E703"]
 
 [tool.ruff.format]
