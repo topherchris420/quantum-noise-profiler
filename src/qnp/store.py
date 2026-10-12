@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Iterable
 
 from .models import Estimate
 
@@ -30,14 +30,23 @@ class EstimateStore:
 
     def add(self, estimates: Iterable[Estimate]) -> int:
         rows = [
-            (e.metric.value, json.dumps(list(e.qubits)), e.context, e.provenance.value,
-             e.status.value, e.timestamp.isoformat(), json.dumps(e.to_dict()))
+            (
+                e.metric.value,
+                json.dumps(list(e.qubits)),
+                e.context,
+                e.provenance.value,
+                e.status.value,
+                e.timestamp.isoformat(),
+                json.dumps(e.to_dict()),
+            )
             for e in estimates
         ]
         with self.conn:
             self.conn.executemany(
                 "INSERT INTO estimates (metric, qubits, context, provenance, status, ts, body) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)", rows)
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                rows,
+            )
         return len(rows)
 
     def all(self) -> list[Estimate]:
@@ -53,8 +62,10 @@ class EstimateStore:
     def mark_recalibrated(self, ts: datetime, qubits: Iterable[int] | None = None, note: str = "") -> None:
         """Baselines restart after a recalibration. ``qubits=None`` means all."""
         with self.conn:
-            self.conn.execute("INSERT INTO recalibrations (ts, qubits, note) VALUES (?, ?, ?)",
-                              (ts.isoformat(), json.dumps(None if qubits is None else sorted(qubits)), note))
+            self.conn.execute(
+                "INSERT INTO recalibrations (ts, qubits, note) VALUES (?, ?, ?)",
+                (ts.isoformat(), json.dumps(None if qubits is None else sorted(qubits)), note),
+            )
 
     def last_recalibration(self, qubits: tuple[int, ...]) -> datetime | None:
         latest = None

@@ -11,18 +11,21 @@ TS = datetime(2026, 10, 1, tzinfo=timezone.utc)
 
 def test_cirq_recovers_injected_bit_flip():
     import cirq
+
     from qnp.adapters.cirq_adapter import infer_from_results
 
     q0, q1, q2 = cirq.LineQubit.range(3)
     circuit = cirq.Circuit(
-        cirq.X(q1), cirq.H(q2),
-        cirq.bit_flip(0.04).on(q0), cirq.bit_flip(0.04).on(q1),
-        cirq.measure(q0, q1, key="m"), cirq.measure(q2, key="s"),
+        cirq.X(q1),
+        cirq.H(q2),
+        cirq.bit_flip(0.04).on(q0),
+        cirq.bit_flip(0.04).on(q1),
+        cirq.measure(q0, q1, key="m"),
+        cirq.measure(q2, key="s"),
     )
     # Noise channels are part of the "executed" circuit here; the profiler must
     # analyze the noiseless program, so pass the circuit without them.
-    ideal_program = cirq.Circuit(cirq.X(q1), cirq.H(q2), cirq.measure(q0, q1, key="m"),
-                                 cirq.measure(q2, key="s"))
+    ideal_program = cirq.Circuit(cirq.X(q1), cirq.H(q2), cirq.measure(q0, q1, key="m"), cirq.measure(q2, key="s"))
     result = cirq.DensityMatrixSimulator(seed=3).run(circuit, repetitions=20_000)
     es = {e.qubits: e for e in infer_from_results([ideal_program], [result], TS)}
     for q in (0, 1):

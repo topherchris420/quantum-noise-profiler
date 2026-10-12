@@ -47,6 +47,7 @@ def sha256_file(p: Path) -> str:
 
 # --------------------------------------------------------------------------- manifest
 
+
 def read_manifest() -> dict[str, str]:
     if not MANIFEST.exists():
         return {}
@@ -60,8 +61,10 @@ def read_manifest() -> dict[str, str]:
 
 
 def write_manifest(entries: dict[str, str]) -> None:
-    lines = ["# sha256 of raw result files and of individual runs.jsonl entries (run:<run_id>).",
-             "# Append-only: entries are never removed or changed. Verified by tools/verify_results.py."]
+    lines = [
+        "# sha256 of raw result files and of individual runs.jsonl entries (run:<run_id>).",
+        "# Append-only: entries are never removed or changed. Verified by tools/verify_results.py.",
+    ]
     lines += [f"{d}  {n}" for n, d in sorted(entries.items())]
     MANIFEST.write_text("\n".join(lines) + "\n")
 
@@ -91,6 +94,7 @@ def check_manifest(errors: list[str]) -> None:
 
 
 # --------------------------------------------------------------------------- v0.1 recomputation
+
 
 def _first(log, pred):
     for b in log:
@@ -197,22 +201,32 @@ def recompute_e3(trials, config):
                 ab += not good
                 ok += len(good)
                 cov += sum(e["ci_low"] <= 0.03 <= e["ci_high"] for e in good)
-        out["E3a"][name] = {"abstention_rate": ab / (2 * len(ts)), "n_ok": ok, "coverage_among_ok": cov / ok if ok else None}
+        out["E3a"][name] = {
+            "abstention_rate": ab / (2 * len(ts)),
+            "n_ok": ok,
+            "coverage_among_ok": cov / ok if ok else None,
+        }
     for t in trials:
         if t["part"] == "E3b":
-            out["E3b"][f"p={t['p']},n={t['n']}"] = {"abstention_rate": t["abstention_rate"], "coverage_among_ok": t["coverage_among_ok"]}
+            out["E3b"][f"p={t['p']},n={t['n']}"] = {
+                "abstention_rate": t["abstention_rate"],
+                "coverage_among_ok": t["coverage_among_ok"],
+            }
     for r in (0.01, 0.05, 0.2, 1, 3, 10):
         ts = [t for t in trials if t["part"] == "E3c" and t["range_over_T1"] == r]
         ok = [t for t in ts if t["estimate"]["status"] == "ok"]
         cov = sum(t["estimate"]["ci_low"] <= t1 <= t["estimate"]["ci_high"] for t in ok)
-        out["E3c"][f"r={r}"] = {"abstention_rate": 1 - len(ok) / len(ts),
-                                "coverage_among_ok": cov / len(ok) if ok else None,
-                                "false_confidence_rate": (len(ok) - cov) / len(ts)}
+        out["E3c"][f"r={r}"] = {
+            "abstention_rate": 1 - len(ok) / len(ts),
+            "coverage_among_ok": cov / len(ok) if ok else None,
+            "false_confidence_rate": (len(ok) - cov) / len(ts),
+        }
     fl = [t for t in trials if t["part"] == "E3d-fluct"]
     ok = [t for t in fl if t["estimate"]["status"] == "ok"]
     out["E3d"]["fluctuating_T1"] = {
         "abstention_rate": 1 - len(ok) / len(fl),
-        "false_confidence_rate": sum(not (t["estimate"]["ci_low"] <= t1 <= t["estimate"]["ci_high"]) for t in ok) / len(fl),
+        "false_confidence_rate": sum(not (t["estimate"]["ci_low"] <= t1 <= t["estimate"]["ci_high"]) for t in ok)
+        / len(fl),
     }
     bi = [t for t in trials if t["part"] == "E3d-biexp"]
     ok = [t for t in bi if t["estimate"]["status"] == "ok"]
@@ -223,8 +237,11 @@ def recompute_e3(trials, config):
     return out
 
 
-V01_RECOMPUTE = {"E1_gradual_drift": recompute_e1, "E2_sudden_degradation": recompute_e2,
-                 "E3_insufficient_evidence": recompute_e3}
+V01_RECOMPUTE = {
+    "E1_gradual_drift": recompute_e1,
+    "E2_sudden_degradation": recompute_e2,
+    "E3_insufficient_evidence": recompute_e3,
+}
 
 
 def _flatten(d, prefix=""):
@@ -268,7 +285,10 @@ def check_criteria(entry: dict, errors: list[str]) -> None:
     for c in entry["criteria"]:
         passed = c["observed"] >= c["threshold"] if c["comparison"] == ">=" else c["observed"] <= c["threshold"]
         if passed != c["passed"]:
-            errors.append(f"{entry['run_id']}: criterion {c['name']} recorded passed={c['passed']} but observed {c['observed']} {c['comparison']} {c['threshold']} gives {passed}")
+            errors.append(
+                f"{entry['run_id']}: criterion {c['name']} recorded passed={c['passed']} but observed "
+                f"{c['observed']} {c['comparison']} {c['threshold']} gives {passed}"
+            )
     if entry["passed_all"] != all(c["passed"] for c in entry["criteria"]):
         errors.append(f"{entry['run_id']}: passed_all inconsistent with criteria")
 

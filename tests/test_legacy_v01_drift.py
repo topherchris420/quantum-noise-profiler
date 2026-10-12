@@ -1,10 +1,14 @@
+"""Regression tests for the FROZEN v0.1 decision rules (qnp.legacy.v01_drift).
+These pin the baseline behaviour; the v0.2 engine is tested in test_drift_v02.py."""
+
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
-from qnp import AlertLevel, DriftConfig, Estimate, Metric, Profiler, Provenance
-from qnp.drift import analyze_series
+from qnp import AlertLevel, Estimate, Metric, Profiler, Provenance  # noqa: F401
 from qnp.inferred import FlipTally, flip_estimates
+from qnp.legacy.v01_drift import LegacyDriftConfig as DriftConfig
+from qnp.legacy.v01_drift import analyze_series
 from qnp.stats import beta_interval
 
 T0 = datetime(2026, 10, 1, tzinfo=timezone.utc)
@@ -56,8 +60,16 @@ def test_gradual_trend_produces_forecast_before_threshold():
 
 
 def _t1(value, ts, rel_width=0.1, prov=Provenance.MEASURED):
-    return Estimate(Metric.T1, (0,), prov, ts, value=value, ci_low=value * (1 - rel_width),
-                    ci_high=value * (1 + rel_width), ci_level=0.95)
+    return Estimate(
+        Metric.T1,
+        (0,),
+        prov,
+        ts,
+        value=value,
+        ci_low=value * (1 - rel_width),
+        ci_high=value * (1 + rel_width),
+        ci_level=0.95,
+    )
 
 
 def test_interval_series_detects_t1_drop_not_noise():
@@ -70,8 +82,10 @@ def test_interval_series_detects_t1_drop_not_noise():
 
 def test_point_series_uses_baseline_scatter():
     vals = [100, 104, 97, 101, 99, 103]
-    es = [Estimate(Metric.T1, (0,), Provenance.OBSERVED, T0 + timedelta(hours=i), value=v * 1e-6)
-          for i, v in enumerate(vals)]
+    es = [
+        Estimate(Metric.T1, (0,), Provenance.OBSERVED, T0 + timedelta(hours=i), value=v * 1e-6)
+        for i, v in enumerate(vals)
+    ]
     cfg = DriftConfig(thresholds={}, recent_batches=1)
     assert not analyze_series(es, cfg)
     es.append(Estimate(Metric.T1, (0,), Provenance.OBSERVED, T0 + timedelta(hours=7), value=60e-6))

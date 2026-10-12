@@ -43,7 +43,11 @@ STEP_CONDITIONS = ("x1.5", "x1.2", "x1.1")
 K_GRID = [round(x, 2) for x in np.arange(1.5, 4.51, 0.05)]
 PROFILER_VARIANTS = {
     "profiler_v01_warn": {"kinds": ("drift", "threshold"), "levels": ALARM_LEVELS, "pmin": None},
-    "profiler_v01_any": {"kinds": ("drift", "threshold", "forecast"), "levels": {"INFO", "WARNING", "CRITICAL"}, "pmin": None},
+    "profiler_v01_any": {
+        "kinds": ("drift", "threshold", "forecast"),
+        "levels": {"INFO", "WARNING", "CRITICAL"},
+        "pmin": None,
+    },
     "profiler_v01_warn_p0.99": {"kinds": ("drift", "threshold"), "levels": ALARM_LEVELS, "pmin": 0.99},
     "profiler_v01_warn_p0.999": {"kinds": ("drift", "threshold"), "levels": ALARM_LEVELS, "pmin": 0.999},
 }
@@ -77,8 +81,11 @@ def per_run_events(trial, detector, start, step, n_batches, ratio):
     false_q1 = i1 is not None
     i_det = detector(log, 0, step) if ratio != 1.0 else None
     return {
-        "first_alarm_q0": i0, "first_alarm_q1": i1,
-        "false_q0": false_q0, "false_q1": false_q1, "false_run": false_q0 or false_q1,
+        "first_alarm_q0": i0,
+        "first_alarm_q1": i1,
+        "false_q0": false_q0,
+        "false_q1": false_q1,
+        "false_run": false_q0 or false_q1,
         "delay": None if i_det is None else i_det - step,
     }
 
@@ -110,7 +117,9 @@ def summarize_rows(rows, config):
         d["within_24"] = float(np.mean([r["delay"] is not None and r["delay"] <= 24 for r in rs]))
         clean = [r for r in rs if not r["false_q0"]]
         d["clean_prestep_runs"] = len(clean)
-        d["detect_rate_given_clean_prestep"] = float(np.mean([r["delay"] is not None for r in clean])) if clean else None
+        d["detect_rate_given_clean_prestep"] = (
+            float(np.mean([r["delay"] is not None for r in clean])) if clean else None
+        )
         s[c] = d
     return s
 
@@ -122,7 +131,9 @@ def analyze(trials, config):
     for name, v in PROFILER_VARIANTS.items():
         methods[name] = lambda log, q, s, v=v: profiler_first(log, q, s, v["kinds"], v["levels"], v["pmin"])
     for k in K_GRID:
-        methods[f"shewhart_k{k:.2f}"] = lambda log, q, s, k=k: shewhart_first(log, q, s, k, config["shewhart_ref"], shots_per_batch)
+        methods[f"shewhart_k{k:.2f}"] = lambda log, q, s, k=k: shewhart_first(
+            log, q, s, k, config["shewhart_ref"], shots_per_batch
+        )
     rows_by_method = {name: evaluate_method(trials, det, config) for name, det in methods.items()}
     summary = {name: summarize_rows(rows, config) for name, rows in rows_by_method.items()}
 
@@ -141,11 +152,15 @@ def analyze(trials, config):
             "profiler_run_false_alarm": target,
             "matched_k": k,
             "shewhart_run_false_alarm": float(fa_k[best]),
-            **{f"{c}": {"profiler_detect_rate": summary[name][c]["detect_rate"],
-                       "shewhart_detect_rate": summary[f"shewhart_k{k:.2f}"][c]["detect_rate"],
-                       "profiler_median_delay": summary[name][c]["median"],
-                       "shewhart_median_delay": summary[f"shewhart_k{k:.2f}"][c]["median"]}
-               for c in STEP_CONDITIONS},
+            **{
+                f"{c}": {
+                    "profiler_detect_rate": summary[name][c]["detect_rate"],
+                    "shewhart_detect_rate": summary[f"shewhart_k{k:.2f}"][c]["detect_rate"],
+                    "profiler_median_delay": summary[name][c]["median"],
+                    "shewhart_median_delay": summary[f"shewhart_k{k:.2f}"][c]["median"],
+                }
+                for c in STEP_CONDITIONS
+            },
         }
     summary["matched_false_alarm"] = matched
     # Headline numbers used in the correction note.
@@ -178,12 +193,18 @@ def recompute_summary(trials, config):
         best = max(i for i in range(len(ks)) if diff[i] == diff.min())
         k = ks[best]
         matched[name] = {
-            "profiler_run_false_alarm": target, "matched_k": k, "shewhart_run_false_alarm": float(fa_k[best]),
-            **{c: {"profiler_detect_rate": summary[name][c]["detect_rate"],
-                   "shewhart_detect_rate": summary[f"shewhart_k{k:.2f}"][c]["detect_rate"],
-                   "profiler_median_delay": summary[name][c]["median"],
-                   "shewhart_median_delay": summary[f"shewhart_k{k:.2f}"][c]["median"]}
-               for c in STEP_CONDITIONS},
+            "profiler_run_false_alarm": target,
+            "matched_k": k,
+            "shewhart_run_false_alarm": float(fa_k[best]),
+            **{
+                c: {
+                    "profiler_detect_rate": summary[name][c]["detect_rate"],
+                    "shewhart_detect_rate": summary[f"shewhart_k{k:.2f}"][c]["detect_rate"],
+                    "profiler_median_delay": summary[name][c]["median"],
+                    "shewhart_median_delay": summary[f"shewhart_k{k:.2f}"][c]["median"],
+                }
+                for c in STEP_CONDITIONS
+            },
         }
     summary["matched_false_alarm"] = matched
     summary["headline"] = {
@@ -196,4 +217,4 @@ def recompute_summary(trials, config):
     return summary
 
 
-__all__ = ["analyze", "recompute_summary", "wilson", "K_GRID", "PROFILER_VARIANTS"]
+__all__ = ["K_GRID", "PROFILER_VARIANTS", "analyze", "recompute_summary", "wilson"]

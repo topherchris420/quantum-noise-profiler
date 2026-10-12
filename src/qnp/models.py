@@ -22,7 +22,33 @@ class Provenance(str, Enum):
 
 class Status(str, Enum):
     OK = "ok"
-    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"  # the data cannot support a number
+    MODEL_MISSPECIFICATION = "model_misspecification"  # the data contradict the model that would produce it
+
+
+class ForecastStatus(str, Enum):
+    """Why a forecast is, or is not, offered. Every non-valid status comes
+    with machine-readable ``Reason`` entries."""
+
+    VALID_FORECAST = "VALID_FORECAST"
+    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"  # trend not statistically supported
+    MODEL_MISSPECIFICATION = "MODEL_MISSPECIFICATION"  # linear-trend model does not fit
+    INSUFFICIENT_HISTORY = "INSUFFICIENT_HISTORY"  # too few points or too short a span
+    UNSTABLE_TREND = "UNSTABLE_TREND"  # slope not consistent over the history
+    UNSUPPORTED_HORIZON = "UNSUPPORTED_HORIZON"  # crossing lies beyond what the data can support
+
+
+@dataclass(frozen=True)
+class Reason:
+    """Machine-readable reason attached to a rejected forecast or estimate."""
+
+    code: str
+    message: str
+    value: float | None = None
+    limit: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"code": self.code, "message": self.message, "value": self.value, "limit": self.limit}
 
 
 class Metric(str, Enum):
@@ -63,6 +89,69 @@ class Estimate:
     source: str = ""
     assumptions: tuple[str, ...] = ()
     reason: str = ""  # why INSUFFICIENT_EVIDENCE, when it is
+    # Structured diagnostics (e.g. goodness-of-fit results for MEASURED fits).
+    diagnostics: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Fail explicitly on inconsistent input instead of carrying it into
+        the analysis (invalid timestamps, impossible counts, NaN values)."""
+        import math
+
+        if not isinstance(self.metric, Metric):
+            raise TypeError(f"metric must be a Metric, got {self.metric!r}")
+        if not isinstance(self.provenance, Provenance):
+            raise TypeError(f"provenance must be a Provenance, got {self.provenance!r}")
+        if not isinstance(self.status, Status):
+            raise TypeError(f"status must be a Status, got {self.status!r}")
+        if isinstance(self.qubits, list):
+            object.__setattr__(self, "qubits", tuple(self.qubits))
+        if (
+            not isinstance(self.qubits, tuple)
+            or not self.qubits
+            or not all(isinstance(q, int) and not isinstance(q, bool) and q >= 0 for q in self.qubits)
+        ):
+            raise ValueError(f"qubits must be a non-empty tuple of non-negative ints, got {self.qubits!r}")
+        if len(set(self.qubits)) != len(self.qubits):
+            raise ValueError(f"duplicate qubit index in {self.qubits!r}")
+        if not isinstance(self.timestamp, datetime):
+            raise TypeError(f"timestamp must be a datetime, got {type(self.timestamp).__name__}")
+        if self.timestamp.tzinfo is None or self.timestamp.utcoffset() is None:
+            raise ValueError("timestamp must be timezone-aware (naive datetimes are ambiguous)")
+        if isinstance(self.assumptions, list):
+            object.__setattr__(self, "assumptions", tuple(self.assumptions))
+        for name in ("value", "ci_low", "ci_high", "ci_level"):
+            v = getattr(self, name)
+            if v is not None:
+                if isinstance(v, bool) or not isinstance(v, (int, float)):
+                    raise TypeError(f"{name} must be a number or None, got {v!r}")
+                if not math.isfinite(v):
+                    raise ValueError(f"{name} must be finite, got {v!r}")
+        if self.status is Status.OK:
+            if self.value is None:
+                raise ValueError("status OK requires a value")
+        else:
+            if self.value is not None:
+                raise ValueError("INSUFFICIENT_EVIDENCE estimates must not carry a value")
+            if not self.reason:
+                raise ValueError("INSUFFICIENT_EVIDENCE estimates must give a reason")
+        if (self.ci_low is None) != (self.ci_high is None):
+            raise ValueError("ci_low and ci_high must be given together")
+        if self.ci_low is not None:
+            if self.ci_low > self.ci_high:
+                raise ValueError(f"ci_low {self.ci_low} > ci_high {self.ci_high}")
+            if self.value is not None and not (self.ci_low - 1e-12 <= self.value <= self.ci_high + 1e-12):
+                raise ValueError(f"value {self.value} outside its interval [{self.ci_low}, {self.ci_high}]")
+            if self.ci_level is None or not 0 < self.ci_level < 1:
+                raise ValueError("an interval needs ci_level in (0, 1)")
+        if (self.successes is None) != (self.trials is None):
+            raise ValueError("successes and trials must be given together")
+        if self.trials is not None:
+            if isinstance(self.trials, bool) or isinstance(self.successes, bool):
+                raise TypeError("counts must be ints")
+            if not (isinstance(self.trials, int) and isinstance(self.successes, int)):
+                raise TypeError("successes and trials must be ints")
+            if self.trials < 0 or self.successes < 0 or self.successes > self.trials:
+                raise ValueError(f"impossible counts successes={self.successes}, trials={self.trials}")
 
     @property
     def series_key(self) -> tuple[str, tuple[int, ...], str, str]:
@@ -81,7 +170,7 @@ class Estimate:
         return d
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "Estimate":
+    def from_dict(cls, d: dict[str, Any]) -> Estimate:
         d = dict(d)
         d["metric"] = Metric(d["metric"])
         d["provenance"] = Provenance(d["provenance"])
@@ -89,6 +178,7 @@ class Estimate:
         d["timestamp"] = datetime.fromisoformat(d["timestamp"])
         d["qubits"] = tuple(d["qubits"])
         d["assumptions"] = tuple(d["assumptions"])
+        d.setdefault("diagnostics", {})
         return cls(**d)
 
 

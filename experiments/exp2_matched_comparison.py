@@ -51,25 +51,56 @@ def main():
     # Post-hoc re-evaluation of the preregistered E2.C3 bar under matched rules.
     # These are informational: E2.C3 was preregistered for the profiler only.
     criteria = [
-        Criterion("E2.C3-matched/profiler", "profiler WARNING/CRITICAL: runs with any false alarm, matched rules", 0.10,
-                  summary["profiler_v01_warn"]["run_false_alarm"]["rate"], "<="),
-        Criterion("E2.C3-matched/shewhart3", "Shewhart 3-sigma, both qubits: runs with any false alarm, matched rules", 0.10,
-                  summary["shewhart_k3.00"]["run_false_alarm"]["rate"], "<="),
+        Criterion(
+            "E2.C3-matched/profiler",
+            "profiler WARNING/CRITICAL: runs with any false alarm, matched rules",
+            0.10,
+            summary["profiler_v01_warn"]["run_false_alarm"]["rate"],
+            "<=",
+        ),
+        Criterion(
+            "E2.C3-matched/shewhart3",
+            "Shewhart 3-sigma, both qubits: runs with any false alarm, matched rules",
+            0.10,
+            summary["shewhart_k3.00"]["run_false_alarm"]["rate"],
+            "<=",
+        ),
     ]
-    notes = ("Re-analysis of recorded raw data only (no new simulation). Corrects the evaluation asymmetries "
-             "in docs/V01_AUDIT.md D1. Criteria are post-hoc applications of the E2.C3 bar to both methods "
-             "under matched rules and were not preregistered.")
-    entry = record("E2_matched_comparison", config, summary, criteria, raw, started, notes,
-                   env_at_start=env0, protocol="docs/V01_AUDIT.md D1; results/E2_CORRECTION.md")
+    notes = (
+        "Re-analysis of recorded raw data only (no new simulation). Corrects the evaluation asymmetries "
+        "in docs/V01_AUDIT.md D1. Criteria are post-hoc applications of the E2.C3 bar to both methods "
+        "under matched rules and were not preregistered."
+    )
+    entry = record(
+        "E2_matched_comparison",
+        config,
+        summary,
+        criteria,
+        raw,
+        started,
+        notes,
+        env_at_start=env0,
+        protocol="docs/V01_AUDIT.md D1; results/E2_CORRECTION.md",
+    )
     print_entry(entry)
     h = summary["headline"]
-    print(f"\nrecorded: profiler {h['recorded_profiler_false_alarm_run_rate']:.3f} vs shewhart {h['recorded_shewhart_false_alarm_run_rate']:.3f}")
-    print(f"matched : profiler {h['matched_profiler_warn_run_false_alarm']:.3f} vs shewhart-3s {h['matched_shewhart_3sigma_run_false_alarm']:.3f}; "
-          f"Shewhart k at profiler FA = {h['shewhart_k_at_profiler_false_alarm']}")
+    rec_p, rec_s = h["recorded_profiler_false_alarm_run_rate"], h["recorded_shewhart_false_alarm_run_rate"]
+    print(f"\nrecorded: profiler {rec_p:.3f} vs shewhart {rec_s:.3f}")
+    print(
+        f"matched : profiler {h['matched_profiler_warn_run_false_alarm']:.3f} vs "
+        f"shewhart-3s {h['matched_shewhart_3sigma_run_false_alarm']:.3f}; "
+        f"Shewhart k at profiler FA = {h['shewhart_k_at_profiler_false_alarm']}"
+    )
     for name, m in summary["matched_false_alarm"].items():
-        print(f"  {name}: FA {m['profiler_run_false_alarm']:.3f} ~ shewhart k={m['matched_k']} FA {m['shewhart_run_false_alarm']:.3f} | "
-              + " ".join(f"{c}: P{m[c]['profiler_detect_rate']:.2f}/S{m[c]['shewhart_detect_rate']:.2f} med P{m[c]['profiler_median_delay']}/S{m[c]['shewhart_median_delay']}"
-                         for c in ("x1.5", "x1.2", "x1.1")))
+        cells = " ".join(
+            f"{c}: P{m[c]['profiler_detect_rate']:.2f}/S{m[c]['shewhart_detect_rate']:.2f} "
+            f"med P{m[c]['profiler_median_delay']}/S{m[c]['shewhart_median_delay']}"
+            for c in ("x1.5", "x1.2", "x1.1")
+        )
+        print(
+            f"  {name}: FA {m['profiler_run_false_alarm']:.3f} ~ shewhart k={m['matched_k']} "
+            f"FA {m['shewhart_run_false_alarm']:.3f} | {cells}"
+        )
 
 
 if __name__ == "__main__":

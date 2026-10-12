@@ -78,20 +78,35 @@ def flip_estimates(
         if t.shots < min_shots:
             out.append(
                 insufficient(
-                    Metric.EFFECTIVE_FLIP, (q,), Provenance.INFERRED,
+                    Metric.EFFECTIVE_FLIP,
+                    (q,),
+                    Provenance.INFERRED,
                     f"{t.shots} shots < min_shots={min_shots}",
-                    timestamp, successes=t.flips, trials=t.shots,
-                    context=ctx, source=source, assumptions=FLIP_ASSUMPTIONS,
+                    timestamp,
+                    successes=t.flips,
+                    trials=t.shots,
+                    context=ctx,
+                    source=source,
+                    assumptions=FLIP_ASSUMPTIONS,
                 )
             )
             continue
         mean, lo, hi = beta_interval(t.flips, t.shots, level)
         out.append(
             Estimate(
-                metric=Metric.EFFECTIVE_FLIP, qubits=(q,), provenance=Provenance.INFERRED,
-                timestamp=timestamp, status=Status.OK, value=mean,
-                ci_low=lo, ci_high=hi, ci_level=level,
-                successes=t.flips, trials=t.shots, context=ctx, source=source,
+                metric=Metric.EFFECTIVE_FLIP,
+                qubits=(q,),
+                provenance=Provenance.INFERRED,
+                timestamp=timestamp,
+                status=Status.OK,
+                value=mean,
+                ci_low=lo,
+                ci_high=hi,
+                ci_level=level,
+                successes=t.flips,
+                trials=t.shots,
+                context=ctx,
+                source=source,
                 assumptions=FLIP_ASSUMPTIONS,
             )
         )
@@ -99,8 +114,12 @@ def flip_estimates(
         if q not in covered:
             out.append(
                 insufficient(
-                    Metric.EFFECTIVE_FLIP, (q,), Provenance.INFERRED, reason,
-                    timestamp, source=source,
+                    Metric.EFFECTIVE_FLIP,
+                    (q,),
+                    Provenance.INFERRED,
+                    reason,
+                    timestamp,
+                    source=source,
                 )
             )
     return out

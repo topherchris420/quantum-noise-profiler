@@ -25,6 +25,7 @@ BATCH_INTERVAL = timedelta(minutes=10)
 
 # --------------------------------------------------------------------------- provenance of runs
 
+
 def _git(*args: str) -> str:
     try:
         return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
@@ -81,9 +82,17 @@ class Criterion:
         return {**self.__dict__, "passed": self.passed}
 
 
-def record(experiment: str, config: dict, summary: dict, criteria: list[Criterion],
-           trials: list[dict], started: datetime, notes: str = "",
-           env_at_start: dict | None = None, protocol: str = "") -> dict:
+def record(
+    experiment: str,
+    config: dict,
+    summary: dict,
+    criteria: list[Criterion],
+    trials: list[dict],
+    started: datetime,
+    notes: str = "",
+    env_at_start: dict | None = None,
+    protocol: str = "",
+) -> dict:
     """Append one run to results/runs.jsonl and its raw trials to results/raw/.
     Never overwrites; failures are recorded exactly like successes.
 
@@ -138,6 +147,7 @@ def print_entry(entry: dict) -> None:
 
 
 # --------------------------------------------------------------------------- simulated workload
+
 
 def workload(n_det_pairs: int = 1, n_random: int = 2, seed: int = 1234):
     """A two-qubit job: deterministic 'mirror' circuits (random layer, then its
@@ -220,16 +230,27 @@ def stream(p0_schedule, p1_schedule, seed: int, shots: int, config=None) -> list
         counts = run_batch(circuits, p0, p1, shots, seed * 10_000 + i)
         prof.ingest_qiskit(circuits, counts, ts)
         alerts = prof.check(now=ts)
-        log.append({
-            "i": i, "p_true": [p0, p1],
-            "naive": [naive_rate(counts, circuits, 0), naive_rate(counts, circuits, 1)],
-            "alerts": [{"kind": a.kind, "level": a.level.value, "qubit": a.qubits[0],
+        log.append(
+            {
+                "i": i,
+                "p_true": [p0, p1],
+                "naive": [naive_rate(counts, circuits, 0), naive_rate(counts, circuits, 1)],
+                "alerts": [
+                    {
+                        "kind": a.kind,
+                        "level": a.level.value,
+                        "qubit": a.qubits[0],
                         "context": a.context,
-                        **{k: a.details.get(k) for k in ("hours_to_threshold_median", "probability",
-                                                         "predictive_tail_probability")
-                           if a.details.get(k) is not None}}
-                       for a in alerts],
-        })
+                        **{
+                            k: a.details.get(k)
+                            for k in ("hours_to_threshold_median", "probability", "predictive_tail_probability")
+                            if a.details.get(k) is not None
+                        },
+                    }
+                    for a in alerts
+                ],
+            }
+        )
     return log
 
 

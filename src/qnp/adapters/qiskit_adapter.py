@@ -3,8 +3,9 @@ OBSERVED calibration from a BackendV2 Target or IBM BackendProperties."""
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from datetime import datetime
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from ..inferred import FlipTally, QubitIdeal, flip_estimates, tally_marginal
 from ..models import Estimate, Metric, Provenance, insufficient, utcnow
@@ -134,12 +135,12 @@ def infer_from_results(
                     per_reg[name] = None
                 else:
                     per_reg[name] = _ones_by_position(bitarray.get_counts())
-            lookup = lambda reg, idx, gidx: (  # noqa: E731
+            lookup = lambda reg, idx, gidx: (
                 None if per_reg.get(reg) is None else (per_reg[reg][0], per_reg[reg][1].get(idx, 0))
             )
         else:
             shots, ones = _ones_by_position(res)
-            lookup = lambda reg, idx, gidx: (shots, ones.get(gidx, 0))  # noqa: E731
+            lookup = lambda reg, idx, gidx: (shots, ones.get(gidx, 0))
 
         for q, (reg, idx, gidx) in an.measured.items():
             ideal = an.ideal[q]
@@ -173,11 +174,28 @@ def observe_target(target, timestamp: datetime | None = None, source: str = "qis
         for metric, attr in ((Metric.T1, "t1"), (Metric.T2, "t2")):
             val = getattr(props, attr, None) if props is not None else None
             if val is None:
-                out.append(insufficient(metric, (q,), Provenance.OBSERVED,
-                                        f"backend reports no {attr.upper()}", timestamp, source=source))
+                out.append(
+                    insufficient(
+                        metric,
+                        (q,),
+                        Provenance.OBSERVED,
+                        f"backend reports no {attr.upper()}",
+                        timestamp,
+                        source=source,
+                    )
+                )
             else:
-                out.append(Estimate(metric, (q,), Provenance.OBSERVED, timestamp, value=float(val),
-                                    source=source, assumptions=_OBSERVED_ASSUMPTIONS))
+                out.append(
+                    Estimate(
+                        metric,
+                        (q,),
+                        Provenance.OBSERVED,
+                        timestamp,
+                        value=float(val),
+                        source=source,
+                        assumptions=_OBSERVED_ASSUMPTIONS,
+                    )
+                )
     for name in target.operation_names:
         if name in _SKIP or name in ("reset", "id"):
             continue
@@ -185,9 +203,18 @@ def observe_target(target, timestamp: datetime | None = None, source: str = "qis
             if qargs is None or iprops is None or iprops.error is None:
                 continue
             metric = Metric.READOUT_ERROR if name == "measure" else Metric.GATE_ERROR
-            out.append(Estimate(metric, tuple(qargs), Provenance.OBSERVED, timestamp,
-                                value=float(iprops.error), context="" if name == "measure" else name,
-                                source=source, assumptions=_OBSERVED_ASSUMPTIONS))
+            out.append(
+                Estimate(
+                    metric,
+                    tuple(qargs),
+                    Provenance.OBSERVED,
+                    timestamp,
+                    value=float(iprops.error),
+                    context="" if name == "measure" else name,
+                    source=source,
+                    assumptions=_OBSERVED_ASSUMPTIONS,
+                )
+            )
     return out
 
 

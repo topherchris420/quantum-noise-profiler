@@ -6,7 +6,6 @@ import sys
 from datetime import datetime, timezone
 
 import numpy as np
-
 from common import BATCH_INTERVAL, Criterion, first_index, print_entry, record, stream
 
 N_SEEDS = int(sys.argv[1]) if len(sys.argv) > 1 else 50
@@ -31,20 +30,24 @@ def main():
         ctrl = stream(CONTROL, Q1, 100_000 + seed, SHOTS)
         i_prof = first_index(ramp, q0({"forecast", "threshold"}))
         i_naive = next((b["i"] for b in ramp if b["naive"][0] > THR), None)
-        lead = lambda i: None if i is None else (I_CROSS - i) * MIN  # noqa: E731
+        lead = lambda i: None if i is None else (I_CROSS - i) * MIN
         prof_lead.append(lead(i_prof))
         naive_lead.append(lead(i_naive))
         early.append(i_prof is not None and i_prof < I_CROSS)
         ctrl_prof_any.append(first_index(ctrl, q0({"forecast", "threshold", "drift"})) is not None)
-        ctrl_prof_warn.append(first_index(ctrl, q0({"forecast", "threshold", "drift"}, {"WARNING", "CRITICAL"})) is not None)
+        ctrl_prof_warn.append(
+            first_index(ctrl, q0({"forecast", "threshold", "drift"}, {"WARNING", "CRITICAL"})) is not None
+        )
         ctrl_naive.append(any(b["naive"][0] > THR for b in ctrl))
-        trials.append({"seed": seed, "ramp": ramp, "control": ctrl,
-                       "i_profiler": i_prof, "i_naive": i_naive})
-        print(f"seed {seed}: profiler i={i_prof} naive i={i_naive} "
-              f"control any={ctrl_prof_any[-1]} naive_ctrl={ctrl_naive[-1]}", flush=True)
+        trials.append({"seed": seed, "ramp": ramp, "control": ctrl, "i_profiler": i_prof, "i_naive": i_naive})
+        print(
+            f"seed {seed}: profiler i={i_prof} naive i={i_naive} "
+            f"control any={ctrl_prof_any[-1]} naive_ctrl={ctrl_naive[-1]}",
+            flush=True,
+        )
 
-    finite = lambda xs: [x for x in xs if x is not None]  # noqa: E731
-    med = lambda xs: float(np.median(finite(xs))) if finite(xs) else float("nan")  # noqa: E731
+    finite = lambda xs: [x for x in xs if x is not None]
+    med = lambda xs: float(np.median(finite(xs))) if finite(xs) else float("nan")
     summary = {
         "n_seeds": N_SEEDS,
         "true_crossing_minutes": I_CROSS * MIN,
@@ -58,16 +61,39 @@ def main():
     }
     criteria = [
         Criterion("E1.C1", "profiler alerts before true crossing", 0.80, summary["profiler_early_fraction"], ">="),
-        Criterion("E1.C2", "median lead over naive (min)", 30.0,
-                  summary["profiler_median_lead_min"] - summary["naive_median_lead_min"], ">="),
-        Criterion("E1.C3", "control: runs with any profiler alert on q0", 0.10,
-                  summary["control_profiler_any_alert_rate"], "<="),
+        Criterion(
+            "E1.C2",
+            "median lead over naive (min)",
+            30.0,
+            summary["profiler_median_lead_min"] - summary["naive_median_lead_min"],
+            ">=",
+        ),
+        Criterion(
+            "E1.C3",
+            "control: runs with any profiler alert on q0",
+            0.10,
+            summary["control_profiler_any_alert_rate"],
+            "<=",
+        ),
     ]
-    entry = record("E1_gradual_drift",
-                   {"n_batches": N_BATCHES, "shots": SHOTS, "threshold": THR, "ramp": [0.02, 0.06],
-                    "control_level": 0.045, "q1_level": 0.02, "batch_minutes": MIN,
-                    "circuits_per_batch": 4, "deterministic_per_batch": 2},
-                   summary, criteria, trials, started)
+    entry = record(
+        "E1_gradual_drift",
+        {
+            "n_batches": N_BATCHES,
+            "shots": SHOTS,
+            "threshold": THR,
+            "ramp": [0.02, 0.06],
+            "control_level": 0.045,
+            "q1_level": 0.02,
+            "batch_minutes": MIN,
+            "circuits_per_batch": 4,
+            "deterministic_per_batch": 2,
+        },
+        summary,
+        criteria,
+        trials,
+        started,
+    )
     print_entry(entry)
 
 

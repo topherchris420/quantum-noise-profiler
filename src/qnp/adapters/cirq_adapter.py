@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from datetime import datetime
-from typing import Any, Callable, Iterable
+from typing import Any
 
 from ..inferred import FlipTally, QubitIdeal, flip_estimates, tally_marginal
 from ..models import Estimate, utcnow
