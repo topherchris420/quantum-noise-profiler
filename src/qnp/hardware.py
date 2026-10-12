@@ -416,13 +416,13 @@ class HardwareSession:
         return record
 
 
-def execution_timestamps(job) -> dict[str, str | None]:
+def execution_timestamps(job) -> dict[str, bool | str | None]:
     """Execution timestamps from ``job.metrics()`` when the service provides
     them. Local/fake jobs have none; that is reported, not invented."""
     try:
         m = job.metrics()
     except Exception as exc:
-        return {"available": False, "reason": f"job.metrics() failed: {exc}"}  # type: ignore[dict-item]
+        return {"available": False, "reason": f"job.metrics() failed: {exc}"}
     ts = (m or {}).get("timestamps") or {}
     return {
         "available": bool(ts),

@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 
 
 class Provenance(str, Enum):
@@ -137,9 +137,10 @@ class Estimate:
         if (self.ci_low is None) != (self.ci_high is None):
             raise ValueError("ci_low and ci_high must be given together")
         if self.ci_low is not None:
-            if self.ci_low > self.ci_high:
+            ci_high = cast(float, self.ci_high)  # given together with ci_low (checked above)
+            if self.ci_low > ci_high:
                 raise ValueError(f"ci_low {self.ci_low} > ci_high {self.ci_high}")
-            if self.value is not None and not (self.ci_low - 1e-12 <= self.value <= self.ci_high + 1e-12):
+            if self.value is not None and not (self.ci_low - 1e-12 <= self.value <= ci_high + 1e-12):
                 raise ValueError(f"value {self.value} outside its interval [{self.ci_low}, {self.ci_high}]")
             if self.ci_level is None or not 0 < self.ci_level < 1:
                 raise ValueError("an interval needs ci_level in (0, 1)")

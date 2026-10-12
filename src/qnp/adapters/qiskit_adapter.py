@@ -177,7 +177,7 @@ def infer_from_results(
     for circuit, res in zip(circuits, results, strict=True):
         an = analyze_circuit(circuit, max_sim_qubits, context_mode)
         if hasattr(res, "data"):  # SamplerV2 pub result
-            per_reg = {}
+            per_reg: dict[str, tuple[int, dict[int, int]] | None] = {}
             for name in {reg for reg, _, _ in an.measured.values()}:
                 bitarray = getattr(res.data, name, None)
                 if bitarray is None or bitarray.shape != ():
@@ -185,7 +185,7 @@ def infer_from_results(
                 else:
                     per_reg[name] = _ones_by_position(bitarray.get_counts())
             lookup = lambda reg, idx, gidx: (
-                None if per_reg.get(reg) is None else (per_reg[reg][0], per_reg[reg][1].get(idx, 0))
+                None if (reg_tally := per_reg.get(reg)) is None else (reg_tally[0], reg_tally[1].get(idx, 0))
             )
         else:
             shots, ones = _ones_by_position(res)

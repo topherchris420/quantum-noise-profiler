@@ -52,6 +52,7 @@ value.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import cast
 
 import numpy as np
 from scipy import stats as sps
@@ -387,7 +388,7 @@ def gaussian_regression_evalue(
 
 
 def _as_gs(g) -> tuple[float, ...]:
-    gs = (float(g),) if np.isscalar(g) else tuple(float(v) for v in g)
+    gs = (float(cast(float, g)),) if np.isscalar(g) else tuple(float(v) for v in g)
     if not gs or any(v <= 0 for v in gs):
         raise ValueError("g must be a positive number or a non-empty tuple of positive numbers")
     return gs
@@ -452,11 +453,11 @@ class GaussianChangeDetector:
         rho = 1.0 / self.change_prior_mean
         log_pi, log_tail = geometric_log_prior(T, rho)
         s_lo = 2 if self.max_lookback is None else max(2, T - self.max_lookback + 1)
-        y, w = np.asarray(self.ys), np.asarray(self.ws)
+        y_arr, w_arr = np.asarray(self.ys), np.asarray(self.ws)
         logs, b_means, b_scales, nus, ss = [], [], [], [], []
         for s in range(s_lo, T + 1):
             x = (np.arange(1, T + 1) >= s).astype(float)
-            log_e_s, ev = gaussian_regression_mixture_evalue(y, x, w, self.g, True, self.sign)
+            log_e_s, ev = gaussian_regression_mixture_evalue(y_arr, x, w_arr, self.g, True, self.sign)
             logs.append(log_pi[s - 1] + log_e_s)
             b_means.append(ev.b_post_mean)
             b_scales.append(ev.b_post_scale)

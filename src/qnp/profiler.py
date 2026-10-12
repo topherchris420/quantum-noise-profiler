@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from .drift import CHANNELS, DriftConfig, GroupReport, SeriesState, analyze_group
 from .legacy.v01_drift import LegacyDriftConfig
@@ -86,7 +86,7 @@ class Profiler:
         return groups
 
     def _alphas(self, groups) -> dict[str, float]:
-        b = self.config.budget
+        b = cast(DriftConfig, self.config).budget  # only called by reports(), which rejects legacy
         live = [(k, v) for k, v in groups.items() if any(e.status is Status.OK for es in v.values() for e in es)]
         n_q = len({k[1] for k, _ in live}) or 1
         n_m = len({k[0] for k, _ in live}) or 1
@@ -109,22 +109,24 @@ class Profiler:
     def reports(self, now: datetime | None = None) -> list[GroupReport]:
         if self.legacy:
             raise TypeError("reports() needs the v0.2 engine; LegacyDriftConfig only produces alerts")
+        config = cast(DriftConfig, self.config)  # not legacy (checked above)
         groups = self._groups()
         alpha = self._alphas(groups)
         out = []
         for (_metric, qubits, _prov), series in sorted(
             groups.items(), key=lambda kv: (kv[0][1], str(kv[0][0]), str(kv[0][2]))
         ):
-            rep = analyze_group(series, self.config, now, self.store.last_recalibration(qubits), alpha, self._states)
+            rep = analyze_group(series, config, now, self.store.last_recalibration(qubits), alpha, self._states)
             if rep is not None:
                 out.append(rep)
         return out
 
     def check(self, now: datetime | None = None) -> list[Alert]:
         if self.legacy:
+            legacy_config = cast(LegacyDriftConfig, self.config)
             alerts: list[Alert] = []
             for (_, qubits, _, _), es in self.store.series().items():
-                alerts += _legacy_analyze_series(es, self.config, now, self.store.last_recalibration(qubits))
+                alerts += _legacy_analyze_series(es, legacy_config, now, self.store.last_recalibration(qubits))
             return alerts
         return [a for rep in self.reports(now) for a in rep.alerts]
 

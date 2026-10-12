@@ -30,10 +30,10 @@ unknown rate, measured empirically at fixed rates), ``gaussian_approx``
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from scipy import stats as sps
@@ -190,22 +190,26 @@ class SeriesState:
     def _analysis_space(self, e: Estimate) -> tuple[float, float, bool]:
         """(y, w, sigma_known) for one estimate."""
         if self.kind == "binomial":
-            k, n = e.successes, e.trials
+            # binomial series: every estimate carries successes and trials
+            k, n = cast(int, e.successes), cast(int, e.trials)
             a, b = k + 0.5, n - k + 0.5
             mean = a / (a + b)
             var = a * b / ((a + b) ** 2 * (a + b + 1))
             return float(mean), float(1 / var), True
+        # only OK estimates are fed, so value is set; interval series carry ci_low/ci_high
+        value = cast(float, e.value)
+        ci_low, ci_high = cast(float, e.ci_low), cast(float, e.ci_high)
         if self.log_scale:
-            if e.value <= 0 or (e.ci_low is not None and e.ci_low <= 0):
+            if value <= 0 or (e.ci_low is not None and e.ci_low <= 0):
                 raise ValueError(f"non-positive value/interval for log-scale metric {self.metric.value}: {e}")
-            y = float(np.log(e.value))
+            y = float(np.log(value))
             if self.kind == "interval":
-                sig = (np.log(e.ci_high) - np.log(e.ci_low)) / (2 * _z(e.ci_level))
-                return y, float(1 / sig**2), True
+                log_sig = (np.log(ci_high) - np.log(ci_low)) / (2 * _z(e.ci_level))
+                return y, float(1 / log_sig**2), True
             return y, 1.0, False
-        y = float(e.value)
+        y = float(value)
         if self.kind == "interval":
-            sig = (e.ci_high - e.ci_low) / (2 * _z(e.ci_level))
+            sig = (ci_high - ci_low) / (2 * _z(e.ci_level))
             if sig <= 0:
                 raise ValueError(f"degenerate interval for {e}")
             return y, float(1 / sig**2), True
@@ -231,7 +235,7 @@ class SeriesState:
 
     def _push(self, e: Estimate) -> None:
         y, w, known = self._analysis_space(e)
-        t = (e.timestamp - self.t0).total_seconds() / 3600
+        t = (e.timestamp - cast(datetime, self.t0)).total_seconds() / 3600  # t0 set by _reset() in feed()
         self.t_hours.append(t)
         self.y.append(y)
         self.w.append(w)
@@ -261,7 +265,7 @@ class SeriesState:
                                 theta, sign, 0.02, eps_max, 24, self.config.change_prior_mean_batches
                             )
                         self.thr_log_e.append(self.thr.update(y, sigma))
-        self.trend.update(t, y, w)
+        cast(GaussianTrendDetector, self.trend).update(t, y, w)  # built by _reset() in feed()
 
     # -- evidence -----------------------------------------------------------
     @property
@@ -295,11 +299,11 @@ class SeriesState:
             q = (np.arange(400) + 0.5) / 400
             p1 = sps.beta.ppf(q, a1, b1)
             prob = float(np.mean(sps.beta.sf(np.clip((1 + rel) * p1, 0, 1), a2, b2)))
-            base, recent = a1 / (a1 + b1), a2 / (a2 + b2)
+            p_base, p_recent = a1 / (a1 + b1), a2 / (a2 + b2)
             return prob, {
-                "baseline": float(base),
-                "recent": float(recent),
-                "relative_change": float(recent / base - 1),
+                "baseline": float(p_base),
+                "recent": float(p_recent),
+                "relative_change": float(p_recent / p_base - 1),
                 "baseline_batches": int(s - 1),
                 "recent_batches": int(len(ks) - s + 1),
             }
@@ -350,7 +354,7 @@ class SeriesState:
         thr_y = None
         if self.threshold is not None:
             thr_y = float(np.log(self.threshold)) if self.log_scale else float(self.threshold)
-        now_h = (now - self.t0).total_seconds() / 3600
+        now_h = (now - cast(datetime, self.t0)).total_seconds() / 3600  # t0 set by _reset() in feed()
         return forecast_series(
             np.array(self.t_hours),
             np.array(self.y),
@@ -379,6 +383,7 @@ def _shared_change_log_e(states: list[SeriesState], config: DriftConfig) -> floa
         elif s_idx.shape != s_ref.shape or not np.array_equal(s_idx, s_ref):
             return None
         terms_list.append(terms)
+    assert s_ref is not None  # len(states) >= 2, so the loop above ran and set it
     T = states[0].change.t
     if any(st.change.t != T for st in states):
         return None
@@ -433,7 +438,7 @@ class GroupReport:
 
 
 def analyze_group(
-    series: dict[str, Sequence[Estimate]],
+    series: Mapping[str, Sequence[Estimate]],
     config: DriftConfig,
     now: datetime | None,
     baseline_since: datetime | None,
@@ -467,7 +472,7 @@ def analyze_group(
     now = now or latest.timestamp
     metric, qubits, prov = latest.metric, latest.qubits, latest.provenance
     label = f"q{','.join(map(str, qubits))} {metric.value}"
-    kind = sts[0].kind if len({s.kind for s in sts}) == 1 else "mixed"
+    kind = cast(str, sts[0].kind) if len({s.kind for s in sts}) == 1 else "mixed"  # every state was fed
     n_batches = max(s.n for s in sts)
     alerts: list[Alert] = []
 
@@ -478,8 +483,8 @@ def analyze_group(
     thr = config.thresholds.get(metric)
     thr_report: dict[str, Any] = {"threshold": thr, "per_context": {}}
     if thr is not None:
-        logs = [s.threshold_log_e() for s in sts]
-        logs_ok = [x for x in logs if x is not None]
+        thr_logs = [s.threshold_log_e() for s in sts]
+        logs_ok = [x for x in thr_logs if x is not None]
         for c, s in zip(ctxs, sts):
             cur, p_beyond = s.current()
             thr_report["per_context"][c] = {
@@ -491,7 +496,7 @@ def analyze_group(
             log_e = _log_mean_exp(logs_ok)
             bar_nominal = float(np.log(1 / alpha["threshold"]))
             bar = bar_nominal - config.log_e_offset
-            lead = ctxs[int(np.argmax([x if x is not None else -np.inf for x in logs]))]
+            lead = ctxs[int(np.argmax([x if x is not None else -np.inf for x in thr_logs]))]
             cur, p_beyond = live[lead][1].current()
             thr_report.update(
                 log_e=log_e,
@@ -603,6 +608,7 @@ def analyze_group(
     if best is not None:
         c, rep = best
         cr = rep.crossing
+        assert cr is not None  # best is only set when rep.crossing is truthy
         horizon = cr["horizon_hours"]
         fmt = lambda h: "beyond horizon" if h is None else (f"{h * 60:.0f} min" if h < 2 else f"{h:.1f} h")
         level = (

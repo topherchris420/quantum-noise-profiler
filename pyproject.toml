@@ -56,3 +56,7 @@ no_implicit_optional = true
 check_untyped_defs = true
 files = ["src/qnp"]
 exclude = ["src/qnp/legacy/"]
+
+[[tool.mypy.overrides]]
+module = ["qnp.legacy.*"]
+ignore_errors = true

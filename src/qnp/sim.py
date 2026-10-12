@@ -30,7 +30,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -69,9 +69,10 @@ class QubitNoise:
         if (self.t1_s is None) != (self.t2_s is None):
             raise ValueError("give both t1_s and t2_s, or neither")
         if self.t1_s is not None:
-            if self.t1_s <= 0 or self.t2_s <= 0:
+            t2_s = cast(float, self.t2_s)  # given together with t1_s (checked above)
+            if self.t1_s <= 0 or t2_s <= 0:
                 raise ValueError("T1 and T2 must be positive")
-            if self.t2_s > 2 * self.t1_s * (1 + 1e-12):
+            if t2_s > 2 * self.t1_s * (1 + 1e-12):
                 raise ValueError(f"T2={self.t2_s} > 2*T1={2 * self.t1_s} is unphysical")
 
     @property
@@ -79,7 +80,7 @@ class QubitNoise:
         """Pure-dephasing time: 1/T_phi = 1/T2 - 1/(2 T1); inf if T2 == 2 T1."""
         if self.t1_s is None:
             return None
-        rate = 1 / self.t2_s - 1 / (2 * self.t1_s)
+        rate = 1 / cast(float, self.t2_s) - 1 / (2 * self.t1_s)  # t2_s is set whenever t1_s is
         return float("inf") if rate <= 0 else 1 / rate
 
 
@@ -264,7 +265,8 @@ def cirq_noisy_circuit(circuit, device: DeviceNoise, index_of=lambda q: q.x):
         if noise_after:
             # split into moments without qubit overlap
             while noise_after:
-                used, this, rest = set(), [], []
+                used: set[Any] = set()
+                this, rest = [], []
                 for op in noise_after:
                     if used & set(op.qubits):
                         rest.append(op)
@@ -355,7 +357,8 @@ def irregular_timestamps(
 
 def recalibration_batches(n: int, mean_interval_batches: float, rng: np.random.Generator) -> list[int]:
     """Irregular recalibration events (geometric gaps)."""
-    out, t = [], 0
+    out: list[int] = []
+    t = 0
     while True:
         t += int(rng.geometric(1 / mean_interval_batches))
         if t >= n:

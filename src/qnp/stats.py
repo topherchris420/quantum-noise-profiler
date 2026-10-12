@@ -108,7 +108,17 @@ def _runs_pvalue(signs: np.ndarray) -> float:
     return runs_test_pvalue(signs)
 
 
-def _biexponential_log_evidence(delays, k, n, amp_range, offset_range, tau_range, n_tau=40, n_amp=15, n_off=15):
+def _biexponential_log_evidence(
+    delays,
+    k,
+    n,
+    amp_range: tuple[float, float],
+    offset_range: tuple[float, float],
+    tau_range,
+    n_tau=40,
+    n_amp=15,
+    n_off=15,
+):
     """Log marginal likelihood of p(t) = A [f e^{-t/tau_s} + (1-f) e^{-t/tau_f}] + B
     with tau_f < tau_s, log-uniform taus, uniform f in [0.1, 0.9], A and B
     uniform on the given ranges. Returns (log evidence, posterior summaries)."""
