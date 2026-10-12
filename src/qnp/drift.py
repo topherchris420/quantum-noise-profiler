@@ -39,7 +39,7 @@ import numpy as np
 from scipy import stats as sps
 from scipy.special import logsumexp
 
-from .forecast import ForecastConfig, ForecastReport, forecast_series
+from .forecast import ForecastConfig, ForecastReport, apply_evidence_gate, forecast_series
 from .models import Alert, AlertLevel, Estimate, ForecastStatus, Metric, Provenance, Status
 from .sequential import (
     BinomialChangeDetector,
@@ -97,6 +97,12 @@ class DriftConfig:
     g_prior: tuple[float, ...] = (1.0, 10.0, 100.0)
     max_lookback: int | None = None
     forecast: ForecastConfig = field(default_factory=ForecastConfig)
+    # Empirical calibration: every e-value threshold is divided by
+    # exp(log_e_offset). 0 keeps the anytime-valid thresholds; a positive
+    # value trades the theoretical guarantee for an empirically calibrated
+    # false-alert rate (see experiments/V02_PREREGISTRATION.md) and is
+    # reported on every alert as guarantee "...+calibrated".
+    log_e_offset: float = 0.0
 
     def __post_init__(self) -> None:
         if self.combine_contexts not in ("mixture", "average"):
@@ -105,6 +111,8 @@ class DriftConfig:
             raise ValueError("need 0 < min_relative_change < max_relative_change")
         if self.persistence_batches < 1:
             raise ValueError("persistence_batches must be >= 1")
+        if not np.isfinite(self.log_e_offset) or self.log_e_offset < 0:
+            raise ValueError("log_e_offset must be finite and >= 0")
         for m, thr in self.thresholds.items():
             if not isinstance(m, Metric) or not np.isfinite(thr) or thr <= 0:
                 raise ValueError(f"invalid threshold {thr!r} for {m!r}")
@@ -386,6 +394,10 @@ def _shared_change_log_e(states: list[SeriesState], config: DriftConfig) -> floa
     return float(np.logaddexp(logsumexp(joint), log_tail))
 
 
+def _g(label: str, config: DriftConfig) -> str:
+    return f"{label}+calibrated" if config.log_e_offset > 0 else label
+
+
 def _log_mean_exp(logs: Sequence[float]) -> float:
     return float(logsumexp(np.asarray(logs, float)) - np.log(len(logs)))
 
@@ -477,18 +489,20 @@ def analyze_group(
             }
         if logs_ok:
             log_e = _log_mean_exp(logs_ok)
-            bar = float(np.log(1 / alpha["threshold"]))
+            bar_nominal = float(np.log(1 / alpha["threshold"]))
+            bar = bar_nominal - config.log_e_offset
             lead = ctxs[int(np.argmax([x if x is not None else -np.inf for x in logs]))]
             cur, p_beyond = live[lead][1].current()
             thr_report.update(
                 log_e=log_e,
                 e=float(np.exp(min(log_e, 700))),
                 log_e_threshold=bar,
+                log_e_threshold_nominal=bar_nominal,
                 alarm=log_e >= bar,
                 leading_context=lead,
                 current=cur,
                 p_beyond_posterior=p_beyond,
-                guarantee=live[lead][1].guarantee["threshold"],
+                guarantee=_g(live[lead][1].guarantee["threshold"], config),
             )
             if log_e >= bar:
                 alert(
@@ -503,7 +517,7 @@ def analyze_group(
                     e_value=float(np.exp(min(log_e, 700))),
                     e_threshold=float(np.exp(bar)),
                     alpha_series=alpha["threshold"],
-                    guarantee=live[lead][1].guarantee["threshold"],
+                    guarantee=_g(live[lead][1].guarantee["threshold"], config),
                     evidence=kind,
                     contexts=ctxs,
                 )
@@ -513,7 +527,8 @@ def analyze_group(
     log_avg = _log_mean_exp(logs)
     log_shared = _shared_change_log_e(sts, config) if config.combine_contexts == "mixture" else None
     log_group = float(np.logaddexp(log_avg - np.log(2), log_shared - np.log(2))) if log_shared is not None else log_avg
-    bar = float(np.log(1 / alpha["drift"]))
+    bar_nominal = float(np.log(1 / alpha["drift"]))
+    bar = bar_nominal - config.log_e_offset
     i_lead = int(np.argmax(logs))
     lead, lead_st = ctxs[i_lead], sts[i_lead]
     p_effect, effect = lead_st.effect_probability()
@@ -527,6 +542,7 @@ def analyze_group(
         "log_e": log_group,
         "e": float(np.exp(min(log_group, 700))),
         "log_e_threshold": bar,
+        "log_e_threshold_nominal": bar_nominal,
         "log_e_average": log_avg,
         "log_e_shared": log_shared,
         "per_context_log_e": dict(zip(ctxs, logs)),
@@ -537,7 +553,7 @@ def analyze_group(
         "effect": effect,
         "gates": gates,
         "alarm": all(gates.values()),
-        "guarantee": lead_st.guarantee["drift"],
+        "guarantee": _g(lead_st.guarantee["drift"], config),
     }
     if all(gates.values()):
         direction = "up" if effect.get("relative_change", 0) > 0 else "down"
@@ -556,7 +572,7 @@ def analyze_group(
             e_value=float(np.exp(min(log_group, 700))),
             e_threshold=float(np.exp(bar)),
             alpha_series=alpha["drift"],
-            guarantee=lead_st.guarantee["drift"],
+            guarantee=_g(lead_st.guarantee["drift"], config),
             evidence=kind,
             contexts=ctxs,
             change_time_map=lead_st.change.last.get("change_time_map"),
@@ -564,11 +580,16 @@ def analyze_group(
         )
 
     # ---- forecast (INFO/WARNING) --------------------------------------------
-    fc_bar = float(np.log(len(ctxs) / alpha["forecast"]))
-    fc_report: dict[str, Any] = {"log_e_threshold": fc_bar, "per_context": {}}
+    fc_bar_nominal = float(np.log(len(ctxs) / alpha["forecast"]))
+    fc_bar = fc_bar_nominal - config.log_e_offset
+    fc_report: dict[str, Any] = {
+        "log_e_threshold": fc_bar,
+        "log_e_threshold_nominal": fc_bar_nominal,
+        "per_context": {},
+    }
     best: tuple[str, ForecastReport] | None = None
     for c, s in zip(ctxs, sts):
-        rep = s.forecast(now, fc_bar)
+        rep = apply_evidence_gate(s.forecast(now, None), fc_bar)
         fc_report["per_context"][c] = rep.to_dict()
         if (
             rep.valid
@@ -606,7 +627,7 @@ def analyze_group(
             e_value=float(np.exp(min(rep.log_e, 700))),
             e_threshold=float(np.exp(fc_bar)),
             alpha_series=alpha["forecast"],
-            guarantee=live[c][1].guarantee["forecast"],
+            guarantee=_g(live[c][1].guarantee["forecast"], config),
             evidence=kind,
             contexts=ctxs,
             includes_process_variation=True,

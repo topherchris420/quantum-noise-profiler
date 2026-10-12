@@ -25,7 +25,7 @@ from scipy import stats as sps
 from .models import ForecastStatus, Reason
 from .sequential import RegressionEvidence, gaussian_regression_evalue, gaussian_regression_mixture_evalue
 
-__all__ = ["ForecastConfig", "ForecastReport", "forecast_series", "runs_test_pvalue"]
+__all__ = ["ForecastConfig", "ForecastReport", "apply_evidence_gate", "forecast_series", "runs_test_pvalue"]
 
 
 @dataclass
@@ -362,4 +362,72 @@ def forecast_series(
         )
     return ForecastReport(
         ForecastStatus.VALID_FORECAST, (), n, span, trend_log_e, log_e_threshold, slope, slope_scale, crossing, diag
+    )
+
+
+def apply_evidence_gate(report: ForecastReport, log_e_threshold: float) -> ForecastReport:
+    """Apply the trend-evidence gate to an *ungated* report.
+
+    Equivalent to calling ``forecast_series`` with ``log_e_threshold``, but
+    keeps the ungated outcome in ``diagnostics`` (``ungated_status``,
+    ``ungated_alertable``) so that a different threshold can be evaluated
+    later without recomputation."""
+    diag = dict(report.diagnostics)
+    diag["ungated_status"] = report.status.value
+    cr = report.crossing
+    diag["ungated_alertable"] = bool(
+        report.status is ForecastStatus.VALID_FORECAST and cr is not None and not cr["already_beyond"]
+    )
+    diag["ungated_p_within_horizon"] = None if cr is None else cr["p_within_horizon"]
+    diag["ungated_crossing"] = (
+        None
+        if cr is None
+        else {
+            k: cr[k]
+            for k in ("median_hours", "p10_hours", "p90_hours", "p_within_horizon", "horizon_hours", "now_level")
+        }
+    )
+    if report.status is ForecastStatus.INSUFFICIENT_HISTORY:
+        return ForecastReport(
+            report.status,
+            report.reasons,
+            report.n_points,
+            report.span_hours,
+            report.log_e,
+            log_e_threshold,
+            report.slope_per_hour,
+            report.slope_scale,
+            None,
+            diag,
+        )
+    if report.log_e < log_e_threshold:
+        r = Reason(
+            "TREND_NOT_SUPPORTED",
+            f"trend e-value {np.exp(min(report.log_e, 700)):.3g} below {np.exp(log_e_threshold):.3g}",
+            float(np.exp(min(report.log_e, 700))),
+            float(np.exp(log_e_threshold)),
+        )
+        return ForecastReport(
+            ForecastStatus.INSUFFICIENT_EVIDENCE,
+            (r,),
+            report.n_points,
+            report.span_hours,
+            report.log_e,
+            log_e_threshold,
+            report.slope_per_hour,
+            report.slope_scale,
+            None,
+            diag,
+        )
+    return ForecastReport(
+        report.status,
+        report.reasons,
+        report.n_points,
+        report.span_hours,
+        report.log_e,
+        log_e_threshold,
+        report.slope_per_hour,
+        report.slope_scale,
+        report.crossing,
+        diag,
     )

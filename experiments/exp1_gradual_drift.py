@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 import numpy as np
 from common import BATCH_INTERVAL, Criterion, first_index, print_entry, record, stream
 
+from qnp import LegacyDriftConfig  # v0.1 protocol: frozen v0.1 decision rules
+
 N_SEEDS = int(sys.argv[1]) if len(sys.argv) > 1 else 50
 N_BATCHES, SHOTS, THR = 48, 2000, 0.05
 RAMP = np.linspace(0.02, 0.06, N_BATCHES)  # q0 readout error, crosses 5% at i = 35.25
@@ -26,8 +28,8 @@ def main():
     trials, prof_lead, naive_lead, early = [], [], [], []
     ctrl_prof_any, ctrl_prof_warn, ctrl_naive = [], [], []
     for seed in range(N_SEEDS):
-        ramp = stream(RAMP, Q1, seed, SHOTS)
-        ctrl = stream(CONTROL, Q1, 100_000 + seed, SHOTS)
+        ramp = stream(RAMP, Q1, seed, SHOTS, config=LegacyDriftConfig())
+        ctrl = stream(CONTROL, Q1, 100_000 + seed, SHOTS, config=LegacyDriftConfig())
         i_prof = first_index(ramp, q0({"forecast", "threshold"}))
         i_naive = next((b["i"] for b in ramp if b["naive"][0] > THR), None)
         lead = lambda i: None if i is None else (I_CROSS - i) * MIN

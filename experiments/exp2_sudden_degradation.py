@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 import numpy as np
 from common import Criterion, first_index, print_entry, record, stream
 
+from qnp import LegacyDriftConfig  # v0.1 protocol: frozen v0.1 decision rules
+
 N_SEEDS = int(sys.argv[1]) if len(sys.argv) > 1 else 50
 N_BATCHES, STEP_AT, SHOTS, BASE = 48, 24, 2000, 0.02
 RATIOS = {"x1.5": 1.5, "x1.2": 1.2, "x1.1": 1.1, "none": 1.0}
@@ -36,7 +38,7 @@ def main():
     for name, ratio in RATIOS.items():
         sched = np.where(np.arange(N_BATCHES) < STEP_AT, BASE, BASE * ratio)
         for seed in range(N_SEEDS):
-            log = stream(sched, Q1, seed + 1000 * list(RATIOS).index(name), SHOTS)
+            log = stream(sched, Q1, seed + 1000 * list(RATIOS).index(name), SHOTS, config=LegacyDriftConfig())
             pre = [b for b in log if b["i"] < STEP_AT] if ratio != 1.0 else log
             false = any(alarm(0)(a) for b in pre for a in b["alerts"]) or any(
                 alarm(1)(a) for b in log for a in b["alerts"]
