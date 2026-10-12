@@ -233,6 +233,12 @@ def _flatten(d, prefix=""):
         key = f"{prefix}{k}"
         if isinstance(v, dict):
             out.update(_flatten(v, key + "."))
+        elif isinstance(v, (list, tuple)):
+            for i, x in enumerate(v):
+                if isinstance(x, dict):
+                    out.update(_flatten(x, f"{key}[{i}]."))
+                else:
+                    out[f"{key}[{i}]"] = x
         else:
             out[key] = v
     return out
@@ -246,9 +252,12 @@ def compare(recorded: dict, recomputed: dict, run_id: str, errors: list[str]) ->
             errors.append(f"{run_id}: recomputed key {k} absent from recorded summary")
             continue
         r = a[k]
-        same = (r is None and v is None) or (
-            r is not None and v is not None and abs(float(r) - float(v)) <= TOL * max(1.0, abs(float(r)))
-        )
+        if isinstance(r, str) or isinstance(v, str):
+            same = str(r) == str(v)
+        else:
+            same = (r is None and v is None) or (
+                r is not None and v is not None and abs(float(r) - float(v)) <= TOL * max(1.0, abs(float(r)))
+            )
         if not same:
             errors.append(f"{run_id}: {k} recorded={r} recomputed={v}")
         n += 1

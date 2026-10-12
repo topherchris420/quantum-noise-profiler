@@ -32,6 +32,21 @@ def _git(*args: str) -> str:
         return "unknown"
 
 
+def source_tree_hash() -> str:
+    """SHA-256 over the contents of src/ and experiments/ (sorted paths), so a
+    run can prove which code it executed independently of git state."""
+    import hashlib
+
+    h = hashlib.sha256()
+    for sub in ("src", "experiments"):
+        for path in sorted((ROOT / sub).rglob("*.py")):
+            if "__pycache__" in path.parts:
+                continue
+            h.update(str(path.relative_to(ROOT)).encode())
+            h.update(path.read_bytes())
+    return h.hexdigest()
+
+
 def environment() -> dict:
     pkgs = {}
     for name in ("numpy", "scipy", "qiskit", "qiskit-aer", "cirq-core", "qiskit-experiments", "quantum-noise-profiler"):
@@ -42,6 +57,8 @@ def environment() -> dict:
     return {
         "git_commit": _git("rev-parse", "HEAD"),
         "git_dirty": bool(_git("status", "--porcelain", "--", "src", "experiments")),
+        "source_tree_sha256": source_tree_hash(),
+        "captured_at": datetime.now(timezone.utc).isoformat(),
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "packages": pkgs,
@@ -65,9 +82,15 @@ class Criterion:
 
 
 def record(experiment: str, config: dict, summary: dict, criteria: list[Criterion],
-           trials: list[dict], started: datetime, notes: str = "") -> dict:
+           trials: list[dict], started: datetime, notes: str = "",
+           env_at_start: dict | None = None, protocol: str = "") -> dict:
     """Append one run to results/runs.jsonl and its raw trials to results/raw/.
-    Never overwrites; failures are recorded exactly like successes."""
+    Never overwrites; failures are recorded exactly like successes.
+
+    ``env_at_start`` should be ``environment()`` captured before the first
+    trial (v0.1 recorded the environment at completion only; see
+    docs/V01_AUDIT.md D4). ``protocol`` names the preregistration file and
+    section that fixed the criteria."""
     RESULTS.mkdir(exist_ok=True)
     (RESULTS / "raw").mkdir(exist_ok=True)
     run_id = f"{experiment}-{started.strftime('%Y%m%dT%H%M%S')}-{uuid.uuid4().hex[:6]}"
@@ -81,6 +104,8 @@ def record(experiment: str, config: dict, summary: dict, criteria: list[Criterio
         "started": started.isoformat(),
         "finished": datetime.now(timezone.utc).isoformat(),
         "environment": environment(),
+        "environment_at_start": env_at_start,
+        "protocol": protocol,
         "config": config,
         "summary": summary,
         "criteria": [c.to_dict() for c in criteria],
