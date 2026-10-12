@@ -1,0 +1,8 @@
+# sha256 of raw result files and of individual runs.jsonl entries (run:<run_id>).
+# Append-only: entries are never removed or changed. Verified by tools/verify_results.py.
+10fb0463b83c3a178c2b17fc1a890f9b0ebaaadbfa04cf21871a566a9c55c948  raw/E1_gradual_drift-20261012T180942-0c02af.jsonl
+78d8741b45ec0bde8c3853ae4acafe0befbc04b2d450085f5efa987419c26835  raw/E2_sudden_degradation-20261012T180942-ea7ff1.jsonl
+ea0c85a4e8004fe2b1d4f98f20df7ab280e0850ed885c209e744c81d2c57f997  raw/E3_insufficient_evidence-20261012T180942-38b4b8.jsonl
+7a25a518c38afc2763eab1829b420b52bf8ab8a132bea36d93aa439dc3b66350  run:E1_gradual_drift-20261012T180942-0c02af
+a46e81ce84e955cfb30df9556f2ab39f928c48026ff89488976b91ee782310b7  run:E2_sudden_degradation-20261012T180942-ea7ff1
+d9efc5f1703d3abf8cf20bd19546e1605894823f6a65e39d089cc060f0c4da1c  run:E3_insufficient_evidence-20261012T180942-38b4b8
