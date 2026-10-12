@@ -34,6 +34,14 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "results"
 MANIFEST = RESULTS / "MANIFEST.sha256"
+
+
+def set_results_dir(path: Path) -> None:
+    global RESULTS, MANIFEST
+    RESULTS = Path(path)
+    MANIFEST = RESULTS / "MANIFEST.sha256"
+
+
 TOL = 1e-9
 
 
@@ -320,7 +328,7 @@ def check_runs(errors: list[str]) -> None:
             continue
         entry = json.loads(line)
         rid = entry["run_id"]
-        raw = ROOT / entry["raw"]
+        raw = RESULTS / "raw" / Path(entry["raw"]).name
         if not raw.exists():
             errors.append(f"{rid}: raw file missing: {entry['raw']}")
             continue
@@ -337,7 +345,10 @@ def check_runs(errors: list[str]) -> None:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--update", action="store_true", help="add manifest entries for artifacts not yet listed")
+    ap.add_argument("--results-dir", default=None, help="verify another results directory (e.g. CI smoke output)")
     args = ap.parse_args(argv)
+    if args.results_dir:
+        set_results_dir(Path(args.results_dir))
     errors: list[str] = []
     if args.update:
         entries = read_manifest()

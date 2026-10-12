@@ -1,0 +1,111 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install "ruff==0.16.8"
+      - run: ruff check src tests experiments tools examples
+      - run: ruff format --check src tests experiments tools examples
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -e ".[dev]"
+      - run: mypy
+
+  test:
+    name: test (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "${{ matrix.python }}"}
+      - run: pip install -e ".[dev]"
+      - name: unit, numerical-regression, adapter and integration tests (Qiskit + Cirq)
+        run: pytest -q -p no:cacheprovider --durations=10
+
+  min-deps:
+    # oldest versions allowed by pyproject.toml, to catch dependency drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.10"}
+      - run: pip install uv
+      - run: uv pip install --system --resolution lowest-direct -e ".[dev]"
+      - run: pip list | grep -Ei "^(numpy|scipy|qiskit|qiskit-aer|cirq-core) "
+      - run: pytest -q -p no:cacheprovider tests/test_sequential.py tests/test_models_validation.py tests/test_forecast.py tests/test_measured_diagnostics.py tests/test_inferred_qiskit.py
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check dist/*
+      - name: clean-environment install (core dependencies only)
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/pip install dist/*.whl
+          cd /tmp && /tmp/clean/bin/python -c "
+          import qnp, numpy as np
+          from qnp.sequential import BinomialThresholdDetector
+          d = BinomialThresholdDetector(0.05)
+          [d.update(int(k), 2000) for k in np.random.default_rng(0).binomial(2000, 0.08, 10)]
+          assert d.log_e[-1] > np.log(20), d.log_e
+          print('qnp', qnp.__version__, 'core install OK')"
+      - uses: actions/upload-artifact@v4
+        with: {name: dist, path: dist/}
+
+  experiment-smoke:
+    # deterministic, tiny runs of the full v0.2 pipeline; never evidence
+    runs-on: ubuntu-latest
+    env:
+      QNP_RESULTS_DIR: ${{ runner.temp }}/smoke
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -e ".[dev]"
+      - run: |
+          mkdir -p "$QNP_RESULTS_DIR"
+          for e in calibrate C D F; do python experiments/run_v02.py $e --smoke --workers 2; done
+      - name: smoke outputs validate against the schema and recompute exactly
+        run: |
+          python tools/check_provenance.py --results-dir "$QNP_RESULTS_DIR" --allow-smoke || true
+          python tools/verify_results.py --results-dir "$QNP_RESULTS_DIR" --update
+
+  results-integrity:
+    # recorded evidence: hashes, recomputation of every summary, schema and provenance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -e ".[dev]"
+      - run: python tools/verify_results.py
+      - run: python tools/check_provenance.py
