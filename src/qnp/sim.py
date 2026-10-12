@@ -34,9 +34,10 @@ from typing import Any
 
 import numpy as np
 
-ONE_Q_NOISY = ("x", "sx", "h", "ry", "rx", "u", "u3", "y")
+ONE_Q_NOISY = ("x", "sx", "sxdg", "h", "ry", "rx", "u", "u3", "y")
 TWO_Q_NOISY = ("cx", "cz", "ecr")
 DEFAULT_GATE_TIMES = {
+    "sxdg": 35.5e-9,
     "x": 35.5e-9,
     "sx": 35.5e-9,
     "h": 35.5e-9,

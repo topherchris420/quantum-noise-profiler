@@ -92,6 +92,7 @@ def record(
     notes: str = "",
     env_at_start: dict | None = None,
     protocol: str = "",
+    compress: bool = False,
 ) -> dict:
     """Append one run to results/runs.jsonl and its raw trials to results/raw/.
     Never overwrites; failures are recorded exactly like successes.
@@ -103,10 +104,17 @@ def record(
     RESULTS.mkdir(exist_ok=True)
     (RESULTS / "raw").mkdir(exist_ok=True)
     run_id = f"{experiment}-{started.strftime('%Y%m%dT%H%M%S')}-{uuid.uuid4().hex[:6]}"
-    raw_path = RESULTS / "raw" / f"{run_id}.jsonl"
-    with raw_path.open("x") as f:
-        for t in trials:
-            f.write(json.dumps(t, default=_jsonable) + "\n")
+    raw_path = RESULTS / "raw" / (f"{run_id}.jsonl.gz" if compress else f"{run_id}.jsonl")
+    if compress:
+        import gzip
+
+        payload = "".join(json.dumps(t, default=_jsonable) + "\n" for t in trials).encode()
+        with raw_path.open("xb") as fh, gzip.GzipFile(fileobj=fh, mode="wb", mtime=0, compresslevel=9) as gz:
+            gz.write(payload)
+    else:
+        with raw_path.open("x") as f:
+            for t in trials:
+                f.write(json.dumps(t, default=_jsonable) + "\n")
     entry = {
         "run_id": run_id,
         "experiment": experiment,

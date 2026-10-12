@@ -196,8 +196,11 @@ def run_engine(batches: list[Batch], spec: EngineSpec) -> list[dict]:
                 for ctx, v in r.forecast["per_context"].items():
                     d = v["diagnostics"]
                     pw = d.get("ungated_p_within_horizon")
-                    item = {"ctx": ctx, "log_e": v["log_e"],
-                            "alertable": bool(d.get("ungated_alertable") and pw is not None and pw >= fprob)}
+                    item = {
+                        "ctx": ctx,
+                        "log_e": v["log_e"],
+                        "alertable": bool(d.get("ungated_alertable") and pw is not None and pw >= fprob),
+                    }
                     if item["alertable"]:
                         item["crossing"] = d.get("ungated_crossing")
                     fcs.append(item)
@@ -219,8 +222,15 @@ def run_engine(batches: list[Batch], spec: EngineSpec) -> list[dict]:
                 "context": a.context,
                 **{
                     k: a.details.get(k)
-                    for k in ("hours_to_threshold_median", "hours_to_threshold_p10", "hours_to_threshold_p90",
-                          "probability_within_horizon", "probability", "e_value", "e_threshold")
+                    for k in (
+                        "hours_to_threshold_median",
+                        "hours_to_threshold_p10",
+                        "hours_to_threshold_p90",
+                        "probability_within_horizon",
+                        "probability",
+                        "e_value",
+                        "e_threshold",
+                    )
                     if a.details.get(k) is not None
                 },
             }
@@ -248,8 +258,9 @@ def first_alarm(
     return None
 
 
-def first_alarm_rescaled(log: list[dict], qubit: int, log_scale: float, start: int = 0,
-                         channels=("drift", "threshold", "forecast")) -> int | None:
+def first_alarm_rescaled(
+    log: list[dict], qubit: int, log_scale: float, start: int = 0, channels=("drift", "threshold", "forecast")
+) -> int | None:
     """First alarm of the v0.2 engine with every e-value threshold divided by
     exp(log_scale) (the empirically calibrated configuration). Exact: the
     gates that do not depend on the threshold (effect, persistence, forecast

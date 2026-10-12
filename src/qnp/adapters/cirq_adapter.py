@@ -30,7 +30,11 @@ def canonical_gate_name(op) -> str:
         return "rx"
     if isinstance(g, cirq.XPowGate):
         e = g.exponent % 2
-        return "x" if abs(e - 1) < 1e-9 else ("sx" if abs(e - 0.5) < 1e-9 else "rx")
+        if abs(e - 1) < 1e-9:
+            return "x"
+        if abs(e - 0.5) < 1e-9:
+            return "sx"
+        return "sxdg" if abs(e - 1.5) < 1e-9 else "rx"
     if isinstance(g, cirq.HPowGate):
         return "h"
     if isinstance(g, cirq.Ry):

@@ -45,6 +45,14 @@ def sha256_file(p: Path) -> str:
     return sha256_bytes(p.read_bytes())
 
 
+def read_raw(path: Path) -> str:
+    if path.suffix == ".gz":
+        import gzip
+
+        return gzip.decompress(path.read_bytes()).decode()
+    return path.read_text()
+
+
 # --------------------------------------------------------------------------- manifest
 
 
@@ -71,7 +79,7 @@ def write_manifest(entries: dict[str, str]) -> None:
 
 def current_entries() -> dict[str, str]:
     out: dict[str, str] = {}
-    for p in sorted((RESULTS / "raw").glob("*.jsonl")):
+    for p in sorted([*(RESULTS / "raw").glob("*.jsonl"), *(RESULTS / "raw").glob("*.jsonl.gz")]):
         out[f"raw/{p.name}"] = sha256_file(p)
     for line in (RESULTS / "runs.jsonl").read_text().splitlines():
         if line.strip():
@@ -316,7 +324,7 @@ def check_runs(errors: list[str]) -> None:
         if not raw.exists():
             errors.append(f"{rid}: raw file missing: {entry['raw']}")
             continue
-        trials = [json.loads(ln) for ln in raw.read_text().splitlines() if ln.strip()]
+        trials = [json.loads(ln) for ln in read_raw(raw).splitlines() if ln.strip()]
         check_criteria(entry, errors)
         fn = fns.get(entry["experiment"])
         if fn is None:
