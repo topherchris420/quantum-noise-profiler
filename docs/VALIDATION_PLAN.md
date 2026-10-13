@@ -1,5 +1,7 @@
 # Validation plan
 
+> **v0.2 note.** Simulator items 1–4 below were carried out as Experiments D–F of `experiments/V02_PREREGISTRATION.md` (results: `results/V02_SUMMARY.md`). The hardware pathway is now `docs/HARDWARE_VALIDATION.md`.
+
 ## Done in this sprint (simulator, preregistered)
 E1 gradual drift, E2 sudden degradation, E3 insufficient evidence. See
 `experiments/PREREGISTRATION.md` for the fixed criteria and `results/runs.jsonl`

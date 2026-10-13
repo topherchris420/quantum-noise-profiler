@@ -6,8 +6,9 @@ Research release. All validation is in simulation; nothing has been run on
 quantum hardware.
 
 ### Evidence handling
-- v0.1 baseline preserved (`v0.1-baseline` = commit `0e8e41d`; see
-  `docs/V01_AUDIT.md` on the tag push). Every recorded artifact is hashed in
+- v0.1 baseline preserved: commit `0e8e41d` (annotated tag `v0.1-baseline`
+  created locally; this session's git access could not push tags, so the tag
+  must be pushed by a maintainer: `git push origin v0.1-baseline`). Every recorded artifact is hashed in
   `results/MANIFEST.sha256`; `tools/verify_results.py` recomputes every summary
   from raw data; `tools/check_provenance.py` validates schema, clean source
   trees and seed blocks.
@@ -54,11 +55,28 @@ quantum hardware.
   lowest-dependency job, build and clean install, experiment smoke tests,
   result integrity.
 
-### Results
-See `results/V02_SUMMARY.md` (filled in from recorded runs only).
+### Results (simulation only)
+53 of 62 preregistered checks passed (`results/V02_SUMMARY.md`). Run-level
+false-alert probability on stable qubits fell from 0.43–0.88 (v0.1) to at
+most 0.010 (anytime-valid) / 0.070 (calibrated). Failures: 10% steps are not
+detected within 5 batches (all methods); correlated readout drift during a
+T1 sweep passes the model checks (28.5% false confidence); idle-time and
+extra-2q-gate workload changes trip the absolute threshold on unchanged
+hardware.
 
-### Known limitations and release blockers
-See `results/V02_SUMMARY.md` § Limitations and `paper/paper.md` § 8.
+### Fixed after the study
+- `qnp.sim.aer_noise_model` omitted thermal relaxation during two-qubit
+  gates when two-qubit depolarizing was zero (no recorded result affected).
+- CI workflow was invalid before commit `c0f7d6d` (runner context in
+  job-level env): no CI job had run until then.
+
+### Release blockers
+1. No real-hardware validation.
+2. Absolute thresholds on workload-dependent effective flip rates misfire
+   (Experiment E5/E6); needs a design change and a new preregistered test.
+3. Correlated measurement drift during decay sweeps is not detected (D11).
+4. The `v0.1-baseline` tag is not yet on the remote.
+5. The full study ran in one computing environment only.
 
 ## v0.1.0 (research baseline, 2026-10-12)
 Provenance-aware estimates (observed / inferred / measured), Bayesian
