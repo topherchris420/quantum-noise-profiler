@@ -83,13 +83,12 @@ jobs:
   experiment-smoke:
     # deterministic, tiny runs of the full v0.2 pipeline; never evidence
     runs-on: ubuntu-latest
-    env:
-      QNP_RESULTS_DIR: ${{ runner.temp }}/smoke
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
       - run: pip install -e ".[dev]"
+      - run: echo "QNP_RESULTS_DIR=$RUNNER_TEMP/smoke" >> "$GITHUB_ENV"
       - run: |
           mkdir -p "$QNP_RESULTS_DIR"
           for e in calibrate C D F; do python experiments/run_v02.py $e --smoke --workers 2; done
