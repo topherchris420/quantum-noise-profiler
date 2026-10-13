@@ -98,6 +98,10 @@ jobs:
         run: |
           python tools/check_provenance.py --results-dir "$QNP_RESULTS_DIR" --allow-smoke --allow-rehearsal
           python tools/verify_results.py --results-dir "$QNP_RESULTS_DIR" --update
+      - name: v0.3 tables and figures build from smoke outputs
+        run: |
+          python tools/make_v03_tables.py --results-dir "$QNP_RESULTS_DIR" --out "$RUNNER_TEMP/V03_TABLES.md" --allow-smoke
+          python tools/make_v03_figures.py --results-dir "$QNP_RESULTS_DIR" --out "$RUNNER_TEMP/figures" --allow-smoke
 
   results-integrity:
     # recorded evidence: hashes, recomputation of every summary, schema and provenance

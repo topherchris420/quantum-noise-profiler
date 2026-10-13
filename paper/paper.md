@@ -1,10 +1,10 @@
 # Trustworthy warnings from continuous qubit-noise monitoring: anytime-valid alerts, abstaining forecasts and model-checked relaxation fits
 
-*Quantum Noise Profiler v0.2 — research report. Simulation study; no hardware results.*
+*Quantum Noise Profiler v0.2 research report, with the preregistered v0.3 follow-up in §11. Simulation study; no hardware results.*
 
 ## Abstract
 
-A continuously re-tested noise monitor must control how often it raises false alarms over a whole session, not per check, and must refuse estimates its data cannot support. We describe Quantum Noise Profiler v0.2, which replaces per-check posterior bars with anytime-valid e-processes under an explicit session error budget, issues threshold-crossing forecasts with predictive intervals and machine-readable abstention reasons, and withholds T1/T2 values when model checks fail. In a preregistered simulation study (disjoint development, calibration and test seeds; every method on identical data), the run-level false-alert probability on stable qubits fell from 0.43–0.88 (v0.1) to at most 0.010 with anytime-valid thresholds and at most 0.070 with empirically calibrated thresholds, including 24 h sessions. At matched false-alert rates, the calibrated engine gave longer warning on gradual drift than calibrated Shewhart and CUSUM charts (253 vs 223 and 213 min) and faster detection of 20% steps, but CUSUM detected 10% steps more often. The relaxation fit refused to report a value for fluctuating T1 and two-component decays that v0.1 had fitted confidently and wrongly, but it was fooled by correlated readout drift during the sweep (28.5% false confidence). Exact circuit contexts separated most workload changes from hardware changes, but an absolute threshold on workload-dependent error rates misfired. 53 of 62 preregistered checks passed. No result concerns real hardware.
+A continuously re-tested noise monitor must control how often it raises false alarms over a whole session, not per check, and must refuse estimates its data cannot support. We describe Quantum Noise Profiler v0.2, which replaces per-check posterior bars with anytime-valid e-processes under an explicit session error budget, issues threshold-crossing forecasts with predictive intervals and machine-readable abstention reasons, and withholds T1/T2 values when model checks fail. In a preregistered simulation study (disjoint development, calibration and test seeds; every method on identical data), the run-level false-alert probability on stable qubits fell from 0.43–0.88 (v0.1) to at most 0.010 with anytime-valid thresholds and at most 0.070 with empirically calibrated thresholds, including 24 h sessions. At matched false-alert rates, the calibrated engine gave longer warning on gradual drift than calibrated Shewhart and CUSUM charts (253 vs 223 and 213 min) and faster detection of 20% steps, but CUSUM detected 10% steps more often. The relaxation fit refused to report a value for fluctuating T1 and two-component decays that v0.1 had fitted confidently and wrongly, but it was fooled by correlated readout drift during the sweep (28.5% false confidence). Exact circuit contexts separated most workload changes from hardware changes, but an absolute threshold on workload-dependent error rates misfired. 53 of 62 preregistered checks passed. A preregistered follow-up (v0.3, §11) moved the absolute threshold to readout probes, which removed the workload misfire, and made relaxation sweeps drift-robust (0.5% false confidence under the same drift). In a closed-loop simulation, recalibrating on warnings ran far fewer jobs on degraded qubits than fixed schedules at equal calibration cost, though a calibrated CUSUM did as well. All 40 of its simulation criteria passed; its hardware pilot has not been run. No result concerns real hardware.
 
 ## 1. Introduction
 
@@ -378,12 +378,13 @@ v0.2 does not fix.
 2. **Thresholds on workload-dependent quantities** produce false CRITICAL
    alerts when the workload changes (E5, E6). A fix — thresholds tied to a
    fixed probe context or relative to each context's baseline — is not
-   implemented or tested.
+   implemented or tested. *(v0.3: probe thresholds implemented and tested in
+   simulation, §11.2.)*
 3. **Stationary fluctuations** at the effect-gate scale (10%) alarm in about
    half of sessions; a deployment needs a fluctuation model from device data.
 4. **Correlated measurement drift during sweeps** defeats the misfit checks
    (D11); randomised delay order or interleaved references are untested
-   remedies.
+   remedies. *(v0.3: both implemented and tested in simulation, §11.3.)*
 5. **Detection of small changes is slow** (10–15 batches for 10% at 4000
    shots per qubit per batch); the spec claim of 20 circuits is not met.
 6. **The drift channel's guarantee is Bayesian-marginal**; its frequentist
@@ -403,7 +404,158 @@ repository. `python tools/verify_results.py` recomputes every reported
 summary from the raw files and checks their SHA-256 hashes;
 `python tools/check_provenance.py` checks that each run used a clean,
 unchanged source tree and seeds from its preregistered block. Figures are
-regenerated by `python tools/make_figures.py`. See `docs/REPRODUCIBILITY.md`.
+regenerated by `python tools/make_figures.py` (Figs. 1–7) and
+`python tools/make_v03_figures.py` (Figs. 8–10). See `docs/REPRODUCIBILITY.md`.
+
+## 11. v0.3 follow-up (preregistered)
+
+A second preregistered study (`experiments/V03_PREREGISTRATION.md`, committed
+and pushed before any confirmatory run) addressed limitations 1, 2 and 4 of
+§9 and asked whether earlier warnings have operational value. Three
+simulation experiments ran unchanged from the protocol: G (thresholds), H
+(decay fits) and I (operational value). 40 of 40 criteria passed. A hardware
+pilot (P) is specified and rehearsed but has not run. Details and every
+criterion: `results/V03_SUMMARY.md`, `results/V03_TABLES.md`.
+
+### 11.1 What changed
+
+- **Readout probes carry the absolute threshold.** Prepare-and-measure
+  circuits become MEASURED `readout_error` series; workload effective flip
+  rates keep relative drift monitoring only (§11.2).
+- **Drift-robust decay sweeps.** Delays are acquired in random order with
+  interleaved ground references, whose homogeneity is tested (§11.3).
+- **Hardware path.** Sweep delays are rounded to the backend's timing grid,
+  vendor values keep their per-property calibration timestamps, and a pilot
+  runner submits nothing without an explicit flag and a cumulative budget
+  (§11.5).
+
+### 11.2 Thresholds on workload-independent series (Experiment G)
+
+![Fig. 8](figures/fig8_workload_thresholds.png)
+
+The identifiable workload quantity, the effective flip rate $p_{q,c}$, depends
+on the circuit context $c$; an absolute threshold on it tests the workload as
+much as the hardware. v0.3 applies the absolute threshold only to *readout
+probes*: circuits that prepare each measured qubit in a basis state (nothing
+or one X gate) and read it out immediately, recognised by that structure in
+Qiskit and Cirq results. Their flip rate is the assignment error
+$\Pr(\text{read } 1-b \mid \text{prepared } b)$, reported as MEASURED
+`readout_error` with contexts `p(1|0)`, `p(0|1)` (the vendor's
+`prob_meas1_prep0`, `prob_meas0_prep1`). Counts stay binomial, so the
+threshold e-process keeps its exact guarantee (§3). Workload effective flip
+rates keep the drift channel (relative change) but get no absolute threshold
+and no crossing forecast. Monitoring both doubles the declared family
+($n_m = 2$), halving every per-series α.
+
+On the Experiment E device with two probe circuits per batch (100 runs per
+scenario), the v0.2 failure reproduced: thresholds on every context raised
+false alerts in 100% of runs after a 2 µs idle was added before measurement
+and in 43% after extra two-qubit gates. With the v0.3 thresholds these were
+2% and 5% (Fig. 8), and the threshold channel raised no false alert in any
+of 700 runs on unchanged hardware; the remaining 0–5% came from the drift
+channel.
+
+A readout increase coinciding with a workload change was detected by the q0
+probes within six batches in every run (first alert after a median of one
+batch). In v0.2 Experiment E, which had no probes, the drift channel had
+caught it in 1% of runs. Here the v0.2 architecture detected it too, through
+the same probe circuits treated as effective-flip contexts, so a fixed probe
+context, not the threshold's placement, is what fixes this case. On a
+readout ramp, every run warned before the crossing, 10 minutes later in the
+median than the v0.2 architecture on the same data (242.5 vs 252.5 min). All
+12 criteria passed.
+
+### 11.3 Decay fits under measurement drift (Experiment H)
+
+![Fig. 9](figures/fig9_sweep_designs.png)
+
+The v0.2 checks examine residuals along the delay axis. When delays are
+acquired in delay order, a slow drift of the measurement is a smooth function
+of delay, and the fit absorbs it into the amplitude, offset and T1. The v0.3
+design acquires the delays in random order and interleaves five ground
+references (prepare |0⟩, measure) at evenly spaced acquisition positions.
+Their outcome probability does not depend on T1, so a likelihood-ratio test
+of their homogeneity ($G = 2\sum_r [k_r\log\frac{k_r}{n_r\hat p} + (n_r-k_r)\log\frac{n_r-k_r}{n_r(1-\hat p)}]$
+against $\chi^2_{K-1}$, α = 0.01) measures drift directly. A significant
+result reports `READOUT_DRIFT` and the fit is `MODEL_MISSPECIFICATION`. The
+references never enter the fit.
+
+With drift defined along the acquisition, the sequential design reproduced
+the v0.2 failure (D11 conditions: 0.255 confidently wrong), and a linear
+offset drift of ±1.5% was worse (0.370). Randomizing the order alone reduced
+these to 0.090 and 0.110 but left slow drift at 0.130. With references, the
+rates were 0.005, 0.025 (slow AR(1)) and 0.000 (linear) (Fig. 9). The price was
+2.5–4% of valid fits rejected (1.5–2% with the sequential design) and five
+extra circuits per 15-delay sweep. Coverage of valid fits, which the design
+does not change, was 0.917 pooled over r = 1, 3, 10 (0.90–0.93 per range); at
+r = 1 and r = 10 it sits near 0.90 in every design, as in v0.2. All 19
+criteria passed.
+
+### 11.4 Do earlier warnings reduce failed jobs or calibration overhead? (Experiment I)
+
+![Fig. 10](figures/fig10_operational_frontier.png)
+
+Experiment I simulates the operator's decision directly. Two qubits degrade
+through random gradual onsets and abrupt jumps (illustrative rates, five
+scenarios), on top of a stationary ±5% fluctuation of the readout error. A
+calibration costs one 10-minute batch of downtime and resets the qubit. A
+job fails if it runs while its qubit's true readout error exceeds 5%. Fixed
+calibration schedules, from every 48 h to every 2 h, define a frontier of
+failed jobs against calibrations per qubit-day (Fig. 10). Monitoring policies
+recalibrate on the v0.3 engine's alerts on readout probes, with or without a
+daily schedule. All policies see the same degradation events.
+
+With the daily schedule alone, 13–20% of jobs failed in the three scenarios
+with about one degradation event per qubit-day. Recalibrating on any v0.3
+warning as well cut this to 0–0.31%, 4.7–5.4 percentage points below the
+frontier at the same calibration rate (1.8 points with rare degradation). Without
+the schedule, warnings alone failed 0–0.25% of jobs at 0.8–1.3 calibrations
+per qubit-day; in I2–I4 no fixed schedule up to every 2 h (11.75 per
+qubit-day) failed as few. Against the daily schedule itself, however,
+warnings alone saved calibrations only when degradation was rare (−0.27 per
+qubit-day) or absent (0.20 against 0.75). With daily degradation they cost
+the same or about 0.5 more. Early warnings mattered: acting on drift
+warnings, not only on crossings and forecasts, removed a further 0.8–3.2
+points of failed jobs for 0.6–1.0 more calibrations per qubit-day.
+
+Three results limit the claim. A calibrated CUSUM on the same probes
+performed as well: failed-job differences were at most 0.16 points, and the
+engine used 0.07–0.09 more calibrations per qubit-day in three of ten
+comparisons. The gain therefore comes from monitoring probes and acting
+early, not from the e-process. Second, 0.27–0.44 calibrations per qubit-day
+were triggered while the qubit was neither above threshold nor degraded by
+10%, the stationary-fluctuation problem of §9 item 3. Third, probe shots
+were not counted as a cost. All 9 criteria passed.
+
+### 11.5 Hardware pilot (Experiment P): specified, not run
+
+The same protocol fixes a pilot of 14 jobs over about two hours on one IBM
+Quantum device: a T1 sweep on five qubits (interleaved design), twelve probe
+batches ten minutes apart, and a second sweep. A budget of 320,000 shots and
+420 s estimated QPU time is enforced before every job. The pilot checks the
+two assumptions the v0.3 methods rest on:
+
+- that probe counts are binomial with a constant rate over two hours (P.C1,
+  the drift channel's null hypothesis);
+- that readout is stable within a sweep job (P.C2).
+
+Rehearsals on fake backends exercised the full path and found two defects,
+both fixed before the protocol was committed: delays off the device's timing
+grid, and qubits whose vendor T2 exceeds 2·T1. The pilot has not been run
+because no IBM Quantum account was available.
+
+### 11.6 Limitations after v0.3
+
+Items 2 and 4 of §9 are addressed in simulation. Item 1 remains: the pilot
+is ready but not run. Item 3 now has a measured operational cost (false
+triggers in Experiment I). Items 5–9 are unchanged. Three limitations are
+new:
+
+- The operational result depends on illustrative degradation rates.
+- It assumes the user can recalibrate, which cloud users cannot; for them
+  the intervention is avoiding or remapping a degraded qubit, which has not
+  been tested.
+- Readout probes cost shots in every monitored job.
 
 ## References
 

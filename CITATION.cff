@@ -4,8 +4,8 @@ message: "If you use this software or its results, please cite it as below, and 
 type: software
 authors:
   - name: "Vers3Dynamics"
-version: "0.2.0.dev0"
-date-released: "2026-10-12"
+version: "0.3.0.dev0"
+date-released: "2026-10-13"
 license: MIT
 repository-code: "https://github.com/topherchris420/quantum-noise-profiler"
 keywords:
@@ -21,8 +21,11 @@ abstract: >-
   (observed, inferred, measured), detects degradation with anytime-valid
   e-processes under an explicit session error budget, issues threshold-crossing
   forecasts with predictive intervals and machine-readable abstention reasons,
-  and refuses to report relaxation times when the single-exponential model is
-  contradicted by the data. Evaluated in preregistered simulation studies only.
+  applies absolute thresholds only to workload-independent readout probes, and
+  refuses to report relaxation times when the single-exponential model is
+  contradicted by the data or the measurement drifted during the sweep.
+  Evaluated in preregistered simulation studies only; a hardware pilot is
+  preregistered.
 references:
   - type: software
     title: Qiskit
