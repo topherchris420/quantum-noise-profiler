@@ -50,3 +50,43 @@ def test_seed_layout_is_collision_free():
     assert len(seeds) == 6 * 5 * 200
     with pytest.raises(ValueError):
         seed_for(30_000, 0, 0, 200)
+
+
+def test_experiment_f_circuits_have_identical_exact_flip_probabilities_in_aer_and_cirq():
+    """Exact (density-matrix) cross-framework check behind docs/INVESTIGATION_V02.md section 5."""
+    import cirq
+    from qiskit_aer import AerSimulator
+    from v02.workloads import F_DEVICE, mirror_pair, qiskit_to_cirq
+
+    from qnp.sim import DeviceNoise, aer_noise_model, cirq_noisy_circuit
+
+    for dev in (F_DEVICE, DeviceNoise(F_DEVICE.qubits, depol_2q=0.0)):
+        for qc in mirror_pair(qubits=(3, 7), n_total=8):
+            a = qc.remove_final_measurements(inplace=False)
+            a.save_density_matrix(qubits=[3, 7])
+            pa = np.real(
+                np.diag(
+                    np.asarray(
+                        AerSimulator(method="density_matrix", noise_model=aer_noise_model(dev))
+                        .run(a)
+                        .result()
+                        .data()["density_matrix"]
+                    )
+                )
+            )
+            noisy = cirq_noisy_circuit(qiskit_to_cirq(qc), dev)
+            noisy = cirq.Circuit(
+                cirq.Moment(
+                    o for o in m.operations if not (cirq.is_measurement(o) or isinstance(o.gate, cirq.KrausChannel))
+                )
+                for m in noisy
+            )
+            q3, q7 = cirq.LineQubit(3), cirq.LineQubit(7)
+            pc = np.real(
+                np.diag(
+                    np.asarray(cirq.DensityMatrixSimulator().simulate(noisy, qubit_order=[q3, q7]).final_density_matrix)
+                )
+            )
+            # Aer index = b3 + 2*b7 (little-endian); Cirq index = 2*b3 + b7 (big-endian)
+            assert pa[1] + pa[3] == pytest.approx(pc[2] + pc[3], abs=1e-6)
+            assert pa[2] + pa[3] == pytest.approx(pc[1] + pc[3], abs=1e-6)

@@ -80,7 +80,17 @@ supply-chain question outside this study. REA's artifact identity and
 linkage evidence (above) was the part that added information not visible
 in the Python source: the OpenMP dependency behind the determinism caveat.
 
-## 5. Open questions carried forward
+## 5. Cross-framework discrepancy investigation (Experiment F)
+
+| Finding | Tag | Evidence |
+|---|---|---|
+| Sampled mean flip rates differ by 0.1–0.6% relative (largest 2.5 SE), with Cirq higher in all four contexts | [runtime] | `V02_F_cross_framework-20261013T003304-0c31fc` |
+| Exact density-matrix flip probabilities of the same circuits under the F device agree to ≤ 1e-7 between Aer and Cirq | [runtime] | `tests/test_v02_harness.py::test_experiment_f_circuits_have_identical_exact_flip_probabilities_in_aer_and_cirq` |
+| [inference] The sampled difference is sampling noise: four same-sign differences have probability 1/8 under the null, and the exact probabilities are equal | [inference] | — |
+| With two-qubit depolarizing set to zero, `qnp.sim.aer_noise_model` added **no** noise to `cx`, dropping thermal relaxation during two-qubit gates, while the Cirq builder kept it (state-flip 0.0022 vs 0.0078) | [runtime] | found by the same exact comparison; fixed, regression test `test_two_qubit_gate_relaxation_without_depolarizing_matches_cirq` |
+| No recorded experiment used that configuration (A–C: readout-only; D13: no 2q gates; E, F: depol_2q = 0.01) | [source] | `experiments/v02/workloads.py`, `experiments/common.py` |
+
+## 6. Open questions carried forward
 
 1. Live IBM Runtime: calibration history, `metrics()` fields, quotas [unverified].
 2. Cross-machine bit-identity of Aer runs [unverified]; within-machine determinism verified.

@@ -136,7 +136,12 @@ def aer_noise_model(device: DeviceNoise):
             )
     pairs = set(device.depol_2q_per_pair)
     qs = sorted(device.qubits)
-    if device.depol_2q > 0:
+    # Every ordered pair gets two-qubit-gate noise when there is any to add:
+    # depolarizing (global or per pair) or thermal relaxation during the gate.
+    # (Before 2026-10-13 pairs were only added when depol_2q > 0, which silently
+    # dropped 2q-gate relaxation in Aer while the Cirq builder kept it.)
+    any_relax = device.relax_during_gates and any(device.qubits[q].t1_s for q in qs)
+    if device.depol_2q > 0 or any_relax:
         pairs |= {(a, b) for a in qs for b in qs if a != b}
     for a, b in sorted(pairs):
         lam = device.depol_2q_per_pair.get((a, b), device.depol_2q)

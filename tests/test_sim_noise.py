@@ -201,3 +201,33 @@ def test_schedules():
     ts = irregular_timestamps(500, timedelta(minutes=10), 0.5, rng)
     gaps = np.diff([t.timestamp() for t in ts])
     assert np.all(gaps > 0) and np.mean(gaps) == pytest.approx(600, rel=0.1)
+
+
+def test_two_qubit_gate_relaxation_without_depolarizing_matches_cirq():
+    """Regression: with depol_2q = 0, Aer must still apply relaxation during cx
+    (found by the exact cross-framework check of Experiment F's circuits)."""
+    import cirq
+    from qiskit_aer import AerSimulator
+
+    dev = DeviceNoise({0: QubitNoise(20e-6, 15e-6), 1: QubitNoise(20e-6, 15e-6)}, depol_2q=0.0)
+    qc = QuantumCircuit(2)
+    qc.x(0)
+    for _ in range(10):
+        qc.cx(0, 1)
+    qc.save_density_matrix()
+    rho_a = np.asarray(
+        AerSimulator(method="density_matrix", noise_model=aer_noise_model(dev))
+        .run(qc)
+        .result()
+        .data()["density_matrix"]
+    )
+    q0, q1 = cirq.LineQubit.range(2)
+    cc = cirq.Circuit([cirq.X(q0)] + [cirq.CNOT(q0, q1)] * 10)
+    rho_c = (
+        cirq.DensityMatrixSimulator().simulate(cirq_noisy_circuit(cc, dev), qubit_order=[q0, q1]).final_density_matrix
+    )
+    # Aer little-endian (q1 q0) vs Cirq big-endian (q0 q1): compare populations of q0 = 1
+    pa = np.real(np.diag(rho_a))
+    pc = np.real(np.diag(np.asarray(rho_c)))
+    assert pa[1] + pa[3] == pytest.approx(pc[2] + pc[3], abs=1e-6)
+    assert pa[1] + pa[3] < 0.95  # relaxation during the 10 cx gates is visible
