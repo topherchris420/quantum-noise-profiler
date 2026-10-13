@@ -54,6 +54,25 @@ from .sequential import (
 HIGHER_IS_WORSE = {Metric.EFFECTIVE_FLIP, Metric.READOUT_ERROR, Metric.GATE_ERROR}
 LOG_SCALE = {Metric.T1, Metric.T2}
 CHANNELS = ("drift", "threshold", "forecast")
+# Metrics whose value depends on the workload (the circuit context), not only
+# on the hardware. An absolute threshold on them fires when the workload
+# changes on unchanged hardware (v0.2 Experiment E5/E6), so by default they
+# get no threshold and no crossing forecast; their contexts are monitored for
+# relative change (drift channel) only.
+WORKLOAD_DEPENDENT = {Metric.EFFECTIVE_FLIP}
+# v0.2 default thresholds. ``DriftConfig(thresholds=dict(V02_THRESHOLDS))``
+# reproduces the v0.2 engine, including its absolute threshold on effective
+# flip rates.
+V02_THRESHOLDS = {Metric.EFFECTIVE_FLIP: 0.05, Metric.READOUT_ERROR: 0.05}
+NO_WORKLOAD_THRESHOLD_NOTE = (
+    "no absolute threshold: an effective flip rate depends on the circuit context (workload), so a fixed "
+    "threshold would fire on workload changes; add readout probes (qnp.measured.readout_probe_circuits) "
+    "and threshold their MEASURED readout_error instead"
+)
+WORKLOAD_THRESHOLD_NOTE = (
+    "absolute threshold on a workload-dependent rate: a crossing can come from a workload change "
+    "(e.g. more idle time or two-qubit gates) on unchanged hardware"
+)
 
 
 @dataclass
@@ -92,9 +111,10 @@ class ErrorBudget:
 class DriftConfig:
     budget: ErrorBudget = field(default_factory=ErrorBudget)
     # Recalibration thresholds. Error metrics: alert above. T1/T2: alert below.
-    thresholds: dict[Metric, float] = field(
-        default_factory=lambda: {Metric.EFFECTIVE_FLIP: 0.05, Metric.READOUT_ERROR: 0.05}
-    )
+    # v0.3: readout error only (vendor values and MEASURED readout probes);
+    # workload-dependent metrics get no absolute threshold unless set
+    # explicitly (see WORKLOAD_DEPENDENT and V02_THRESHOLDS).
+    thresholds: dict[Metric, float] = field(default_factory=lambda: {Metric.READOUT_ERROR: 0.05})
     min_relative_change: float = 0.10
     max_relative_change: float = 3.0
     min_baseline_batches: int = 3
@@ -495,6 +515,8 @@ def analyze_group(
     # ---- threshold (CRITICAL) ---------------------------------------------
     thr = config.thresholds.get(metric)
     thr_report: dict[str, Any] = {"threshold": thr, "per_context": {}}
+    if metric in WORKLOAD_DEPENDENT:
+        thr_report["note"] = NO_WORKLOAD_THRESHOLD_NOTE if thr is None else WORKLOAD_THRESHOLD_NOTE
     if thr is not None:
         thr_logs = [s.threshold_log_e() for s in sts]
         logs_ok = [x for x in thr_logs if x is not None]
@@ -680,6 +702,8 @@ def analyze_series(
 __all__ = [
     "CHANNELS",
     "HIGHER_IS_WORSE",
+    "V02_THRESHOLDS",
+    "WORKLOAD_DEPENDENT",
     "DriftConfig",
     "ErrorBudget",
     "ForecastStatus",

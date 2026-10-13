@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from qnp import Metric, Provenance, Status
-from qnp.measured import estimate_t1, run_t1, run_t2_echo
+from qnp.measured import V02_SWEEP, decay_sweep_plan, estimate_t1, run_t1, run_t2_echo
 
 TS = datetime(2026, 10, 1, tzinfo=timezone.utc)
 
@@ -76,7 +76,9 @@ def test_bayesian_t1_agrees_with_qiskit_experiments(relaxing_backend):
     b, sim = relaxing_backend
     truth = b.target.qubit_properties[0].t1
     delays = np.linspace(0, 3 * truth, 15)
-    ours = run_t1(sim, 0, delays, shots=1000, seed=9, timestamp=TS)
+    # v0.2 design (delays in order, no references): the same circuits in the same
+    # order as Qiskit Experiments, so both fitters see the same simulated counts
+    ours = run_t1(sim, 0, delays, shots=1000, seed=9, timestamp=TS, plan=decay_sweep_plan(delays, **V02_SWEEP))
     data = T1(physical_qubits=(0,), delays=delays).run(sim, shots=1000, seed_simulator=9).block_for_results()
     theirs = data.analysis_results("T1", dataframe=True).iloc[0]["value"]
     # Same data-generating process, independent fitters: should agree within our CI width.

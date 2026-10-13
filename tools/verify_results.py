@@ -9,9 +9,10 @@ Two independent checks:
 2. **Recomputation.** For the v0.1 experiments (E1, E2, E3) the summary
    statistics and criteria in ``runs.jsonl`` are recomputed from the raw
    per-trial logs with code that is independent of ``experiments/`` and must
-   agree to floating-point precision. v0.2 experiments register their own
-   ``recompute_summary(trials, config)`` through ``experiments/v02/registry.py``
-   and are checked the same way.
+   agree to floating-point precision. v0.2 and v0.3 experiments register their
+   own ``recompute_summary(trials, config)`` through
+   ``experiments/v02/registry.py`` and ``experiments/v03/registry.py`` and are
+   checked the same way.
 
 Usage::
 
@@ -311,13 +312,12 @@ def check_criteria(entry: dict, errors: list[str]) -> None:
 
 def recompute_functions() -> dict:
     fns = dict(V01_RECOMPUTE)
-    try:
-        sys.path.insert(0, str(ROOT / "experiments"))
-        from v02.registry import RECOMPUTE  # type: ignore
-
-        fns.update(RECOMPUTE)
-    except ImportError:
-        pass
+    sys.path.insert(0, str(ROOT / "experiments"))
+    for mod in ("v02.registry", "v03.registry"):
+        try:
+            fns.update(__import__(mod, fromlist=["RECOMPUTE"]).RECOMPUTE)
+        except ImportError:
+            pass
     return fns
 
 

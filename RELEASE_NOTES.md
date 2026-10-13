@@ -1,5 +1,81 @@
 # Release notes
 
+## v0.3.0 (development, not yet released)
+
+Research release addressing three of the v0.2 release blockers. The new
+methods were tested in a new preregistered simulation study
+(`experiments/V03_PREREGISTRATION.md`, committed and pushed before any
+confirmatory run; results in `results/V03_SUMMARY.md`). A short QPU
+experiment (the hardware pilot, Experiment P; 14 jobs) is preregistered and
+ready to run. It has not run: it needs an IBM Quantum account and the
+account holder's authorization.
+
+### Results (simulation; 40 of 40 preregistered criteria passed)
+- **G, workload changes on unchanged hardware.** Runs with a false alert
+  fell from 1.00 to 0.02 (2 µs idle before measurement) and from 0.43 to
+  0.05 (extra two-qubit gates). The threshold channel raised no false alert
+  in 700 runs. A readout ramp was still caught before the crossing in every
+  run, 10 min later in the median than v0.2.
+- **H, T1 fits under slow readout drift.** Confidently wrong T1 fell from
+  0.255 to 0.005 (v0.2 D11 conditions) and from 0.370 to 0.000 (linear
+  drift). Valid fits rejected: 2.5–4%, against 1.5–2% before.
+- **I, operational value (closed-loop simulation, illustrative rates).**
+  - **Failed jobs:** recalibrating on v0.3 warnings cut jobs run on a
+    degraded qubit from 13–20% (daily schedule alone) to at most 0.31%.
+    That is 4.7–5.4 points below fixed schedules of equal cost.
+  - **Calibrations:** warnings alone did not use fewer calibrations than
+    the daily schedule unless degradation was rare or absent.
+  - **Baseline:** a calibrated CUSUM on the same probes did as well.
+- **P, hardware pilot:** not run.
+
+### Workload-safe thresholds (`qnp.measured`, adapters, `qnp.drift`)
+- **Readout probes.** Prepare-and-measure circuits (`readout_probe_circuits`;
+  any circuit of only X gates and terminal measurements in which no qubit is
+  held waiting for another qubit's measurement) are recognised by their
+  structure in Qiskit and Cirq results and become MEASURED
+  `readout_error` estimates with contexts `p(1|0)` / `p(0|1)` and binomial
+  counts.
+- **Thresholds apply to hardware properties only.** `DriftConfig.thresholds`
+  defaults to `{readout_error: 0.05}`. Workload effective flip rates
+  (`qnp.drift.WORKLOAD_DEPENDENT`) get no absolute threshold or crossing
+  forecast by default and are monitored for relative change; group reports
+  say why. `DriftConfig(thresholds=dict(V02_THRESHOLDS))` restores v0.2.
+- `Profiler.ingest_qiskit` / `ingest_cirq` now call
+  `estimates_from_results`: probes are routed to MEASURED estimates and
+  contexts default to `exact`. `readout_probes="off", context_mode="bucket"`
+  is the v0.2 behaviour; `infer_from_results` is unchanged.
+
+### Decay sweeps robust to measurement drift (`qnp.measured`, `qnp.stats`)
+- `decay_sweep_plan`: delays in random acquisition order with 5 ground
+  references (prepare |0>, measure) spread over the acquisition;
+  `decay_plan_circuits`, `estimate_t1_from_plan`, `estimate_t2_echo_from_plan`.
+- New check `READOUT_DRIFT` (G-test of reference homogeneity, alpha 0.01) ->
+  `MODEL_MISSPECIFICATION`. The runs test of residuals in acquisition order
+  is reported (`acquisition_runs_test_p`) but is not a rejection rule. Fits
+  without acquisition information say that slow drift cannot be detected
+  (`order_note`).
+- `run_t1`, `run_t2_echo` and hardware plans use the new design by default;
+  `decay_sweep_plan(delays, **V02_SWEEP)` is the v0.2 design.
+
+### Hardware pathway (`qnp.hardware`, `experiments/run_v03.py pilot`)
+- Per-qubit sweep delays; parallel readout probes; sweep delays rounded to
+  the backend's timing grid (`align_delays`; IBM rejects off-grid delays);
+  `estimates_from_sweep_job`.
+- A preregistered pilot (Experiment P): dry run by default, 14 jobs, budget
+  enforced; rehearsed on `FakeTorino` and `FakeManilaV2` (local simulation),
+  which exposed the timing-grid defect and an unphysical-vendor-value case,
+  both fixed before preregistration.
+
+### Study infrastructure
+- `experiments/run_v03.py` (G, H, I, pilot), `experiments/v03/` (generators,
+  closed-loop operational simulator, analysis), `tools/make_v03_tables.py`,
+  `tools/make_v03_figures.py`; `tools/verify_results.py` and
+  `tools/check_provenance.py` cover v0.3 entries (seed blocks, protocol,
+  calibration order, rehearsals never in `results/`); CI runs v0.3 smoke
+  experiments and a fake-backend pilot rehearsal.
+- The v0.1 and v0.2 pipelines pin their original behaviour; recorded v0.2
+  runs (Experiments C and E) re-run bit-identically with the v0.3 code.
+
 ## v0.2.0 (development, not yet released)
 
 Research release. All validation is in simulation; nothing has been run on

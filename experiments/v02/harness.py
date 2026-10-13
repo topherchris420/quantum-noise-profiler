@@ -38,7 +38,7 @@ if str(ROOT / "src") not in sys.path:
 if str(ROOT / "experiments") not in sys.path:
     sys.path.insert(0, str(ROOT / "experiments"))
 
-from qnp import DriftConfig, ErrorBudget, Estimate, LegacyDriftConfig, Profiler, Status
+from qnp import V02_THRESHOLDS, DriftConfig, ErrorBudget, Estimate, LegacyDriftConfig, Profiler, Status
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 BATCH_INTERVAL = timedelta(minutes=10)
@@ -164,9 +164,12 @@ class EngineSpec:
                 threshold_probability=self.threshold_probability,
             )
             return Profiler(config=cfg)
+        # v0.2 thresholds (absolute threshold on effective flip rates), pinned so
+        # that the v0.2 study re-runs unchanged under later engine defaults
+        extra = {"thresholds": dict(V02_THRESHOLDS), **self.extra}
         cfg = DriftConfig(
             budget=ErrorBudget(alpha_session=self.alpha_session, n_qubits=self.n_qubits, n_metrics=self.n_metrics),
-            **self.extra,
+            **extra,
         )
         return Profiler(config=cfg)
 

@@ -42,6 +42,11 @@ raw file (`results/raw/`) and the run's `config`, using
 | `python experiments/run_v02.py D` | T1 misspecification | ~10 min |
 | `python experiments/run_v02.py E` / `F` | workload shift / Qiskit-vs-Cirq | ~25 / ~10 min |
 | `python tools/make_figures.py` | figures in `paper/figures/` | 1 min |
+| `python experiments/run_v03.py H` | v0.3 T1 sweeps under drift (7 300 fits) | ~20 min |
+| `python experiments/run_v03.py G` | v0.3 workload changes with readout probes | ~90 min |
+| `python experiments/run_v03.py I` | v0.3 operational value (closed loop) | ~100 min |
+| `python experiments/run_v03.py pilot` | v0.3 hardware pilot: dry run (add `--submit` with an IBM Quantum account) | seconds / ~2 h |
+| `python tools/make_v03_tables.py`, `python tools/make_v03_figures.py` | `results/V03_TABLES.md`, figures 8–10 | 1 min |
 
 Runs append; they never overwrite. A re-run with the same seeds reproduces
 the per-batch logs bit-for-bit on the same machine
@@ -58,15 +63,19 @@ python tools/verify_results.py --results-dir "$QNP_RESULTS_DIR" --update
 ```
 
 `--smoke` refuses to write into `results/`. Smoke runs use 3 runs per
-condition and their pass/fail flags mean nothing.
+condition (v0.3: 2, and half-day runs for I) and their pass/fail flags mean
+nothing. The same holds for a pilot rehearsal on a fake backend
+(`run_v03.py pilot --fake FakeManilaV2 --submit --interval 0`).
 
 ## 5. Seeds
 
 | Block | Range | Used for |
 |---|---|---|
-| development | < 20 000 | tests, design (`experiments/v02/DEVELOPMENT_NOTES.md`) |
-| calibration | 20 000 – 21 999 | thresholds of the calibrated methods |
-| confirmatory | 30 000 – 39 999, 40 000 – 54 999 | Experiments A–F |
+| development | < 20 000 | tests, design (`experiments/v02/DEVELOPMENT_NOTES.md`, `experiments/v03/DEVELOPMENT_NOTES.md`) |
+| calibration | 20 000 – 21 999 | thresholds of the calibrated methods (reused by v0.3) |
+| confirmatory | 30 000 – 39 999, 40 000 – 54 999 | v0.2 Experiments A–F |
+| confirmatory | 60 000 – 69 999, 70 000 – 84 999 | v0.3 Experiments G, I and H |
+| pilot | 90 000 – 90 001 | acquisition order of the v0.3 pilot's T1 sweeps |
 
-`tools/check_provenance.py` fails if a recorded v0.2 run used a seed outside
-its block.
+`tools/check_provenance.py` fails if a recorded v0.2 or v0.3 run used a
+seed outside its block.

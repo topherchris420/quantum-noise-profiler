@@ -238,7 +238,8 @@ def stream(p0_schedule, p1_schedule, seed: int, shots: int, config=None) -> list
     for i, (p0, p1) in enumerate(zip(p0_schedule, p1_schedule)):
         ts = T0 + i * BATCH_INTERVAL
         counts = run_batch(circuits, p0, p1, shots, seed * 10_000 + i)
-        prof.ingest_qiskit(circuits, counts, ts)
+        # v0.1 protocol: bucketed contexts, every circuit treated as workload
+        prof.ingest_qiskit(circuits, counts, ts, context_mode="bucket", readout_probes="off")
         alerts = prof.check(now=ts)
         log.append(
             {

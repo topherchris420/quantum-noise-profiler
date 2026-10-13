@@ -152,6 +152,33 @@ under its stated null* (§2). The binomial change channel's guarantee is
 Bayesian, so the overall statement for fixed rates is an empirical claim
 (Experiment A), not a theorem.
 
+### 3.1 Which series carry an absolute threshold (v0.3)
+
+An absolute recalibration threshold is a statement about the hardware, so it
+is applied only to series whose value does not depend on the workload:
+
+| Series | Absolute threshold (default) | Crossing forecast | Drift (relative change) |
+|---|---|---|---|
+| MEASURED `readout_error` from readout probes (prepare \|b⟩, measure; contexts `p(1\|0)`, `p(0\|1)`) | 5% | yes | yes |
+| OBSERVED `readout_error` (vendor values) | 5% (plug-in scale) | yes | yes |
+| INFERRED `effective_flip_rate` (workload circuits) | **none** | none | yes |
+| T1, T2 (any provenance) | none unless configured | if a threshold is set | yes |
+
+v0.2 applied the 5% threshold to effective flip rates too. Their value
+depends on the circuit context (gate composition, idle time), so a workload
+change on unchanged hardware crossed it (v0.2 Experiment E5: every run;
+E6: 44%). `DriftConfig(thresholds=dict(V02_THRESHOLDS))` reproduces v0.2.
+Readout probes add a metric per qubit, so the family is declared with
+`n_metrics = 2` when both are monitored (each per-series α halves). Their
+counts are binomial, so their threshold channel keeps the exact guarantee of
+§2.2. The probes are recognised by their structure: only X gates and
+terminal measurements, at most one X per qubit, and no qubit held waiting
+for another qubit's measurement (a waiting |1⟩ decays, so its error would
+depend on the circuit). Experiment G of the v0.3 study tested
+the change in simulation: false alerts after the E5 and E6 workload changes
+fell to 2% and 5%, none from the threshold channel (`results/V03_SUMMARY.md`
+§2).
+
 ## 4. Meaningful deterioration
 
 A drift alert requires all three gates:
@@ -195,7 +222,25 @@ $H = \min(\text{horizon}, \text{cap})$. A forecast alert needs
 $\mathbb{P}(t^\ast \le H) \ge 0.5$; it is WARNING if the median is within
 $H/4$, INFO otherwise.
 
-## 6. What is still not guaranteed
+## 6. Decay fits under measurement drift (v0.3)
+
+The model checks of a T1/T2 fit (delay coverage, deviance, posterior
+predictive, residual runs) look at residuals along the delay axis. When
+delays are acquired in delay order, a slow drift of the measurement during
+the sweep is a smooth function of delay and is absorbed into A, B and T1
+(v0.2 D11: 28.5% confidently wrong). `qnp.measured.decay_sweep_plan` (the
+default since v0.3) acquires the delays in random order and spreads 5 ground
+references (prepare \|0⟩, measure) over the acquisition. A likelihood-ratio
+(G) test of the references' homogeneity, α = 0.01, reports `READOUT_DRIFT`
+and the fit is labelled `MODEL_MISSPECIFICATION`; the runs test of the
+residuals in acquisition order is reported but is not a rejection rule. The
+references never enter the fit, so the estimate on drift-free data is the
+v0.2 estimate. Experiment H of the v0.3 study tested the design in
+simulation: under the D11 drift, confidently wrong fits fell from 25.5%
+(sequential) to 0.5%, at the cost of 2.5–4% of valid fits rejected
+(`results/V03_SUMMARY.md` §3).
+
+## 7. What is still not guaranteed
 
 - The binomial change channel at a fixed rate (§2.3): empirical.
 - Gaussian approximation for trend tests on rates with small counts.

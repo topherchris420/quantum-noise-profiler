@@ -1,6 +1,8 @@
 # Validation plan
 
 > **v0.2 note.** Simulator items 1–4 below were carried out as Experiments D–F of `experiments/V02_PREREGISTRATION.md` (results: `results/V02_SUMMARY.md`). The hardware pathway is now `docs/HARDWARE_VALIDATION.md`.
+>
+> **v0.3 note.** The workload-threshold and sweep-drift failures of v0.2 were addressed and tested in Experiments G and H of `experiments/V03_PREREGISTRATION.md`. Operational value was simulated in Experiment I. Results: `results/V03_SUMMARY.md`. A short, separately authorized QPU experiment (Experiment P) is preregistered but has not been run. The read-only observation study proposed in `docs/HARDWARE_VALIDATION.md` has not started either.
 
 ## Done in this sprint (simulator, preregistered)
 E1 gradual drift, E2 sudden degradation, E3 insufficient evidence. See

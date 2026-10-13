@@ -6,8 +6,9 @@
   produced from a clean, unchanged source tree: ``git_dirty`` false at start
   and end, identical source-tree hashes at start and end, identical commits;
 * entries in the repository's results/ must not be smoke tests;
-* confirmatory v0.2 entries must name their protocol and seed block, and
-  their seeds must lie in the preregistered confirmatory ranges.
+* confirmatory v0.2 and v0.3 entries must name their protocol and seed
+  block, and their seeds must lie in the preregistered confirmatory ranges;
+  a hardware-pilot rehearsal on a fake backend must not be in results/.
 
     python tools/check_provenance.py [--results-dir DIR] [--allow-smoke]
 """
@@ -24,6 +25,13 @@ ROOT = Path(__file__).resolve().parents[1]
 CONFIRMATORY = (30_000, 39_999)
 D_RANGE = (40_000, 54_999)
 CALIBRATION = (20_000, 21_999)
+# v0.3 (experiments/V03_PREREGISTRATION.md section 1)
+V03_RANGES = {
+    "V03_G_workload_probes": (60_000, 69_999),
+    "V03_I_operational": (60_000, 69_999),
+    "V03_H_sweep_drift": (70_000, 84_999),
+}
+V03_NEEDS_CALIBRATION = ("V03_G_workload_probes", "V03_I_operational")
 
 
 def _seeds(entry, results):
@@ -62,6 +70,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--results-dir", default=str(ROOT / "results"))
     ap.add_argument("--allow-smoke", action="store_true")
+    ap.add_argument("--allow-rehearsal", action="store_true", help="accept fake-backend pilot rehearsals (CI)")
     args = ap.parse_args(argv)
     results = Path(args.results_dir)
     schema = json.loads((ROOT / "schemas" / "run_entry.schema.json").read_text())
@@ -116,6 +125,21 @@ def main(argv=None) -> int:
             if e["experiment"] != "V02_calibration" and e["experiment"] != "V02_D_misspecification":
                 if not e["config"].get("calibration_run_id") or e["config"]["calibration_run_id"] not in seen:
                     errors.append(f"{rid}: calibration run missing or recorded after this run")
+        if e["experiment"].startswith("V03_") and not smoke:
+            if e.get("protocol") != "experiments/V03_PREREGISTRATION.md":
+                errors.append(f"{rid}: protocol is not the v0.3 preregistration")
+            if e["experiment"] in V03_RANGES:
+                lo, hi = V03_RANGES[e["experiment"]]
+                bad = [s for s in _seeds(e, results) if not lo <= s <= hi]
+                if bad:
+                    errors.append(
+                        f"{rid}: {len(bad)} seeds outside the preregistered range [{lo}, {hi}], e.g. {bad[:3]}"
+                    )
+            if e["experiment"] in V03_NEEDS_CALIBRATION:
+                if not e["config"].get("calibration_run_id") or e["config"]["calibration_run_id"] not in seen:
+                    errors.append(f"{rid}: calibration run missing or recorded after this run")
+        if e["experiment"] == "V03_P_pilot" and e["config"].get("rehearsal") and not args.allow_rehearsal:
+            errors.append(f"{rid}: a fake-backend rehearsal is not evidence")
     print(f"{len(entries)} entries checked, {len(errors)} problem(s)")
     for x in errors:
         print("  " + x)
