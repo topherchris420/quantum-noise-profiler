@@ -85,7 +85,9 @@ What it needs:
 - an IBM Quantum Platform account with access to a QPU, and its API key and
   instance CRN as environment variables `QISKIT_IBM_TOKEN` and
   `QISKIT_IBM_INSTANCE` (or an account saved with
-  `QiskitRuntimeService.save_account`);
+  `QiskitRuntimeService.save_account`). `python tools/ibm_connect.py` saves
+  them (the key prompt does not echo) and lists the reachable QPUs and the
+  remaining usage; it submits nothing;
 - network access to `quantum.cloud.ibm.com` and `iam.cloud.ibm.com`
   (`qiskit-ibm-runtime` ≥ 0.40, channel `ibm_quantum_platform`).
 
