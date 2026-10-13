@@ -48,7 +48,7 @@ def criteria_table(e):
     rows = ["| Criterion | Description | Observed | Required | Result |", "|---|---|---|---|---|"]
     for c in e["criteria"]:
         rows.append(
-            f"| {c['name']} | {c['description']} | {c['observed']:.4g} | {c['comparison']} {c['threshold']:g} | "
+            f"| {c['name']} | {c['description'].replace('|', chr(92) + '|')} | {c['observed']:.4g} | {c['comparison']} {c['threshold']:g} | "
             f"{'PASS' if c['passed'] else 'FAIL'} |"
         )
     return "\n".join(rows)
