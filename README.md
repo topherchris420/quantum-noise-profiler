@@ -8,6 +8,26 @@ session, and refuses to report estimates its data or model cannot support.**
 > preregistered *simulations* (Qiskit Aer, Cirq, numpy). Nothing has been
 > run on quantum hardware. See [What is not known](#what-is-not-known).
 
+## Independent validation: collaborators welcome
+
+We are inviting independent replication and exploratory discussions about a
+**proposed 30-day, read-only observation study** using existing qubit calibration
+records or authorized exports. The observation-only phase would **not** submit
+quantum jobs, modify device settings, access someone else's provider account, or
+claim ground-truth error detection. It can examine data quality, repeatability,
+timestamp fidelity, and agreement with recorded calibration changes. Measuring
+detection accuracy requires a separately defined independent reference.
+
+A later **optional, separately approved** phase could run dedicated T1/T2 and
+fixed-context probe circuits under explicit provider authorization and
+shot/time budgets. Neither phase has started; no hardware results exist.
+
+Researchers at national laboratories, NIST, universities, and other quantum
+facilities can review the [proposed study and collaboration checklist](docs/HARDWARE_VALIDATION.md).
+To discuss feasibility, [open a GitHub issue](https://github.com/topherchris420/quantum-noise-profiler/issues/new)
+without including credentials, restricted records, or confidential data.
+No institutional partnership or endorsement is implied.
+
 ## Why it matters
 
 Error rates and coherence times of real qubits drift between calibrations.
@@ -42,11 +62,22 @@ passed**; the failures are listed below, not hidden. Details:
 |---|---|---|
 | Stable 8 h sessions with any false alert (qubit at 4.5%, threshold 5%) | 0.70 | 0.010 anytime-valid · 0.068 calibrated |
 | Stable 24 h sessions with any false alert | 0.77 | 0.005 · 0.070 |
-| Warning lead before a drifting qubit crosses 5% (median, matched false-alert rate) | 203 min | 253 min (Shewhart 223, CUSUM 213) |
+| Warning lead before a drifting qubit crosses 5% (median, matched false-alert rate) | 203 min (re-thresholded) | 253 min **calibrated** (Shewhart 223, CUSUM 213) |
 | ×1.2 step detected within 6 batches (matched false-alert rate) | 0.20 | 0.73 (CUSUM 0.48) |
 | T1 reported confidently wrong when T1 fluctuates | 0.72 | 0.00 |
 | T1 withheld for a two-component decay | 0.00 | 1.00 |
 | 80% forecast intervals that contained the true crossing time | – | 0.800 |
+
+**Interpretation matters:** the <= 1% stable-session false-alert figures were
+*observed in five simulated conditions* using the **uncalibrated,
+anytime-valid** thresholds. They are not a universal 1% false-alarm guarantee.
+The 253-minute median warning result used a **separately calibrated**
+configuration with *empirical*, not anytime-valid, false-alarm control.
+The declared session error budget is `alpha_session = 0.10` and its coverage
+depends on channel-specific null assumptions; see
+[Sequential methods](docs/SEQUENTIAL_METHODS.md). Forecast coverage was
+measured across correlated forecasts within runs, not independent hardware
+trials. Nothing here establishes performance on real devices.
 
 ![False alerts accumulate under v0.1 and stay bounded under v0.2](paper/figures/fig3_false_alert_accumulation.png)
 
@@ -111,15 +142,18 @@ reports = prof.report()             # per-group evidence, gates and forecast sta
 
 ## How the guarantees work, in one paragraph
 
-Each monitored series carries an *e-process*: a running likelihood ratio,
-mixed over possible change times and effect sizes, whose expectation under
-"no deterioration" is at most 1. Ville's inequality then bounds the chance
-that it *ever* exceeds 1/α, however long monitoring runs. The session
-budget α = 0.10 is split across channels (drift, threshold, forecast) and
-across the declared qubits, metrics and provenances. The threshold channel's guarantee
-is exact. The drift channel's guarantee holds under a prior on the unknown
-baseline rate and is checked empirically at fixed rates. Experiment A held
-in every tested condition. See [`docs/SEQUENTIAL_METHODS.md`](docs/SEQUENTIAL_METHODS.md).
+The monitor uses sequential e-values and declares a session error budget
+`alpha_session = 0.10`, split among channels and the fixed monitoring
+family (qubits, metrics, provenances). **Where the e-process null assumptions
+hold**, Ville's inequality bounds the chance that a test crosses its
+threshold at *any* monitoring time. The binomial threshold channel has an
+exact frequentist guarantee under its model; the binomial drift channel has
+a **Bayesian-marginal** guarantee, with fixed-rate false alerts evaluated by
+simulation. Gaussian approximations and plug-in uncertainty estimates carry
+their own limitations. The faster calibrated configuration **does not retain
+the anytime-valid guarantee**. Each alert reports its guarantee type, and
+none of these claims has yet been validated on hardware. Details:
+[`docs/SEQUENTIAL_METHODS.md`](docs/SEQUENTIAL_METHODS.md).
 
 ## Reproduce and verify
 
