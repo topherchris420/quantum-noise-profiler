@@ -127,7 +127,9 @@ def record(
         "summary": summary,
         "criteria": [c.to_dict() for c in criteria],
         "passed_all": all(c.passed for c in criteria),
-        "raw": os.path.relpath(raw_path, ROOT).replace("\\", "/"),
+        # logical path inside a results directory; tools resolve it against the
+        # directory they verify (the repository's results/ or a smoke directory)
+        "raw": f"results/raw/{raw_path.name}",
         "notes": notes,
     }
     with (RESULTS / "runs.jsonl").open("a") as f:

@@ -69,6 +69,20 @@ hardware.
   gates when two-qubit depolarizing was zero (no recorded result affected).
 - CI workflow was invalid before commit `c0f7d6d` (runner context in
   job-level env): no CI job had run until then.
+- From code review (none affects a recorded result; every experiment used one
+  provenance and the default shares):
+  - the session budget now also divides by the number of provenances monitored
+    per (qubit, metric) (`ErrorBudget.n_provenances`); before, observed and
+    measured T1 of the same qubit each received the full per-series alpha;
+  - a zero channel share disables that channel instead of raising
+    `ZeroDivisionError`;
+  - hardware planning rejects non-integer physical qubit identifiers (`1.9`,
+    `True`, `"1"`) instead of coercing them to a possibly different qubit;
+  - a series with no variation (a vendor value re-read unchanged) abstains
+    with `NO_VARIATION` instead of crashing the forecast;
+  - the CI smoke job's provenance check was non-fatal (`|| true`) and masked
+    a raw-path schema failure; raw paths are now logical
+    (`results/raw/<file>`) and the check is enforced.
 
 ### Release blockers
 1. No real-hardware validation.

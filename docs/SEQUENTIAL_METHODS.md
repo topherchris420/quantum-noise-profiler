@@ -133,15 +133,16 @@ The session budget $\alpha_{\text{session}}$ (default 0.10) is split:
 
 | Dimension | Rule |
 |---|---|
-| channel (drift / threshold / forecast) | fixed shares 0.5 / 0.25 / 0.25 |
-| qubits × metrics | union bound: $\alpha_{\text{series}} = \alpha_{\text{session}}\,\text{share}/(n_q n_m)$ |
+| channel (drift / threshold / forecast) | fixed shares 0.5 / 0.25 / 0.25; a zero share disables that channel (infinite threshold) |
+| qubits × metrics × provenances | union bound: $\alpha_{\text{series}} = \alpha_{\text{session}}\,\text{share}/(n_q n_m n_p)$; $n_p$ is the largest number of provenances (observed / inferred / measured) monitored for one (qubit, metric), since each provenance is a separate test |
 | contexts of one (qubit, metric) | **average** of context e-values (an e-value), no further split |
 | contexts, shared change | ½ average + ½ shared-$(s,\delta)$ product across synchronous contexts |
 | time | free: the e-process is anytime-valid |
 | forecast horizons | one trend test per series; the horizon only enters the predictive statement |
 
-The family size $(n_q, n_m)$ is declared in `ErrorBudget` or frozen at the
-first `check()`. If it later grows, `Profiler.family["exceeded"]` is set and
+The family size $(n_q, n_m, n_p)$ is declared in `ErrorBudget` or frozen at
+the first `check()`. Every recorded experiment monitored one provenance
+($n_p = 1$). If it later grows, `Profiler.family["exceeded"]` is set and
 the budget statement is void (the thresholds were computed for a smaller
 family).
 

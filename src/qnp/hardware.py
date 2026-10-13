@@ -130,7 +130,7 @@ def backend_snapshot(backend, qubits: Sequence[int] | None = None) -> dict[str, 
     else:
         snap["last_update_date"] = _iso(getattr(props, "last_update_date", None))
     n = snap["num_qubits"] or 0
-    qs = list(range(n)) if qubits is None else list(qubits)
+    qs = list(range(n)) if qubits is None else [_physical_index(q) for q in qubits]
     for q in qs:
         if not 0 <= q < n:
             raise ValueError(f"physical qubit {q} does not exist on {snap['backend_name']} ({n} qubits)")
@@ -283,6 +283,15 @@ def _estimate_seconds(backend, circuits, shots: int) -> float:
     return float(sum(per_circ) * shots + 5.0)
 
 
+def _physical_index(q) -> int:
+    """A physical qubit index exactly as given: a non-boolean integer. Floats,
+    strings and booleans are rejected rather than coerced, so a job can never
+    be laid out on a different qubit than the caller wrote."""
+    if isinstance(q, bool) or not isinstance(q, (int, np.integer)):
+        raise ValueError(f"physical qubit identifiers must be integers, got {q!r} ({type(q).__name__})")
+    return int(q)
+
+
 def plan_characterization(
     backend, kind: str, physical_qubits: Sequence[int], delays_s: Sequence[float] = (), shots: int = 1000
 ) -> CharacterizationPlan:
@@ -297,7 +306,7 @@ def plan_characterization(
     if shots <= 0 or not isinstance(shots, int):
         raise ValueError("shots must be a positive int")
     n = backend.num_qubits
-    qs = [int(q) for q in physical_qubits]
+    qs = [_physical_index(q) for q in physical_qubits]
     if len(set(qs)) != len(qs) or any(not 0 <= q < n for q in qs):
         raise ValueError(f"invalid physical qubits {physical_qubits} for a {n}-qubit backend")
     if kind != "probe" and (len(delays_s) < 3 or any(d < 0 for d in delays_s)):

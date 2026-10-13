@@ -26,10 +26,8 @@ D_RANGE = (40_000, 54_999)
 CALIBRATION = (20_000, 21_999)
 
 
-def _seeds(entry, root):
-    path = root / entry["raw"] if not Path(entry["raw"]).is_absolute() else Path(entry["raw"])
-    if not path.exists():
-        path = root / "results" / "raw" / Path(entry["raw"]).name
+def _seeds(entry, results):
+    path = results / "raw" / Path(entry["raw"]).name
     data = gzip.decompress(path.read_bytes()).decode() if path.suffix == ".gz" else path.read_text()
     for line in data.splitlines():
         if line.strip():
@@ -112,7 +110,7 @@ def main(argv=None) -> int:
                 if e["experiment"] == "V02_calibration"
                 else (D_RANGE if e["experiment"] == "V02_D_misspecification" else CONFIRMATORY)
             )
-            bad = [s for s in _seeds(e, ROOT) if not lo <= s <= hi]
+            bad = [s for s in _seeds(e, results) if not lo <= s <= hi]
             if bad:
                 errors.append(f"{rid}: {len(bad)} seeds outside the preregistered range [{lo}, {hi}], e.g. {bad[:3]}")
             if e["experiment"] != "V02_calibration" and e["experiment"] != "V02_D_misspecification":

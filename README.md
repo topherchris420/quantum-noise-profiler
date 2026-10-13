@@ -98,7 +98,8 @@ reports = prof.report()             # per-group evidence, gates and forecast sta
 ```
 
 - Pass the executed (ISA) circuits, so qubit indices are physical.
-- Declare the monitoring family up front (`ErrorBudget(n_qubits, n_metrics)`);
+- Declare the monitoring family up front (`ErrorBudget(n_qubits, n_metrics, n_provenances)`;
+  monitoring one quantity through several provenances counts each as a test);
   if it grows later, `prof.family["exceeded"]` is set and the budget no
   longer holds.
 - `DriftConfig(log_e_offset=2.0)` is the empirically calibrated configuration
@@ -115,7 +116,7 @@ mixed over possible change times and effect sizes, whose expectation under
 "no deterioration" is at most 1. Ville's inequality then bounds the chance
 that it *ever* exceeds 1/α, however long monitoring runs. The session
 budget α = 0.10 is split across channels (drift, threshold, forecast) and
-across the declared qubits and metrics. The threshold channel's guarantee
+across the declared qubits, metrics and provenances. The threshold channel's guarantee
 is exact. The drift channel's guarantee holds under a prior on the unknown
 baseline rate and is checked empirically at fixed rates. Experiment A held
 in every tested condition. See [`docs/SEQUENTIAL_METHODS.md`](docs/SEQUENTIAL_METHODS.md).

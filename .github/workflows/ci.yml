@@ -94,7 +94,7 @@ jobs:
           for e in calibrate C D F; do python experiments/run_v02.py $e --smoke --workers 2; done
       - name: smoke outputs validate against the schema and recompute exactly
         run: |
-          python tools/check_provenance.py --results-dir "$QNP_RESULTS_DIR" --allow-smoke || true
+          python tools/check_provenance.py --results-dir "$QNP_RESULTS_DIR" --allow-smoke
           python tools/verify_results.py --results-dir "$QNP_RESULTS_DIR" --update
 
   results-integrity:

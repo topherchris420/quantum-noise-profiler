@@ -109,5 +109,10 @@ def test_plan_validation(backend):
         plan_characterization(backend, "ramsey", [0], [0, 1e-6, 2e-6])
     with pytest.raises(ValueError):
         plan_characterization(backend, "t1", [0], [0, 1e-6])
-    probe = plan_characterization(backend, "probe", [3, 4], shots=100)
+    for bad in (1.9, True, "1"):
+        with pytest.raises(ValueError, match="must be integers"):
+            plan_characterization(backend, "probe", [bad], shots=100)
+    with pytest.raises(ValueError, match="must be integers"):
+        backend_snapshot(backend, [0.0])
+    probe = plan_characterization(backend, "probe", [np.int64(3), 4], shots=100)
     assert probe.n_circuits == 4

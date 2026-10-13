@@ -30,6 +30,7 @@ unknown rate, measured empirically at fixed rates), ``gaussian_approx``
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -63,6 +64,10 @@ class ErrorBudget:
     shares: dict[str, float] = field(default_factory=lambda: {"drift": 0.5, "threshold": 0.25, "forecast": 0.25})
     n_qubits: int | None = None  # declared family size; None -> frozen at the first check
     n_metrics: int | None = None
+    # Number of provenances (observed / inferred / measured) monitored per
+    # (qubit, metric). Each provenance is a separate test, so it multiplies
+    # the family size. None -> frozen at the first check.
+    n_provenances: int | None = None
 
     def __post_init__(self) -> None:
         if not 0 < self.alpha_session < 1:
@@ -71,13 +76,16 @@ class ErrorBudget:
             raise ValueError(f"shares must be non-negative and cover exactly {CHANNELS}")
         if abs(sum(self.shares.values()) - 1.0) > 1e-9:
             raise ValueError("shares must sum to 1")
-        for name in ("n_qubits", "n_metrics"):
+        for name in ("n_qubits", "n_metrics", "n_provenances"):
             v = getattr(self, name)
             if v is not None and (not isinstance(v, int) or v < 1):
                 raise ValueError(f"{name} must be a positive int or None")
 
-    def alpha_series(self, channel: str, n_qubits: int, n_metrics: int) -> float:
-        return self.alpha_session * self.shares[channel] / (n_qubits * n_metrics)
+    def alpha_series(self, channel: str, n_qubits: int, n_metrics: int, n_provenances: int = 1) -> float:
+        """Per-group error rate for ``channel``: a union bound over the declared
+        qubits x metrics x provenances. A zero share disables the channel
+        (alpha 0, infinite threshold)."""
+        return self.alpha_session * self.shares[channel] / (n_qubits * n_metrics * n_provenances)
 
 
 @dataclass
@@ -399,6 +407,11 @@ def _shared_change_log_e(states: list[SeriesState], config: DriftConfig) -> floa
     return float(np.logaddexp(logsumexp(joint), log_tail))
 
 
+def _log_inv(alpha: float, n: int = 1) -> float:
+    """log(n / alpha); +inf for alpha == 0 (a channel disabled by a zero share)."""
+    return math.inf if alpha <= 0 else float(np.log(n / alpha))
+
+
 def _g(label: str, config: DriftConfig) -> str:
     return f"{label}+calibrated" if config.log_e_offset > 0 else label
 
@@ -494,7 +507,7 @@ def analyze_group(
             }
         if logs_ok:
             log_e = _log_mean_exp(logs_ok)
-            bar_nominal = float(np.log(1 / alpha["threshold"]))
+            bar_nominal = _log_inv(alpha["threshold"])
             bar = bar_nominal - config.log_e_offset
             lead = ctxs[int(np.argmax([x if x is not None else -np.inf for x in thr_logs]))]
             cur, p_beyond = live[lead][1].current()
@@ -532,7 +545,7 @@ def analyze_group(
     log_avg = _log_mean_exp(logs)
     log_shared = _shared_change_log_e(sts, config) if config.combine_contexts == "mixture" else None
     log_group = float(np.logaddexp(log_avg - np.log(2), log_shared - np.log(2))) if log_shared is not None else log_avg
-    bar_nominal = float(np.log(1 / alpha["drift"]))
+    bar_nominal = _log_inv(alpha["drift"])
     bar = bar_nominal - config.log_e_offset
     i_lead = int(np.argmax(logs))
     lead, lead_st = ctxs[i_lead], sts[i_lead]
@@ -585,7 +598,7 @@ def analyze_group(
         )
 
     # ---- forecast (INFO/WARNING) --------------------------------------------
-    fc_bar_nominal = float(np.log(len(ctxs) / alpha["forecast"]))
+    fc_bar_nominal = _log_inv(alpha["forecast"], len(ctxs))
     fc_bar = fc_bar_nominal - config.log_e_offset
     fc_report: dict[str, Any] = {
         "log_e_threshold": fc_bar,

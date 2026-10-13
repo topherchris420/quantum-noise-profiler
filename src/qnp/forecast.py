@@ -169,6 +169,22 @@ def forecast_series(
     diag["trend_log_e"] = trend_log_e
     diag["dispersion_factor"] = evp.sigma2_scale  # 1 == scatter matches reported uncertainty
 
+    if not np.isfinite(ev.b_hat) or not np.isfinite(evp.b_hat):
+        # no variation in y (e.g. a vendor value re-read unchanged): no trend is estimable
+        reasons.append(Reason("NO_VARIATION", "the series has no variation; no trend can be estimated"))
+        return ForecastReport(
+            ForecastStatus.INSUFFICIENT_EVIDENCE,
+            tuple(reasons),
+            n,
+            span,
+            trend_log_e,
+            log_e_threshold,
+            None,
+            None,
+            None,
+            diag,
+        )
+
     # --- residual structure of the linear fit
     xt, yt = t - ev.x_bar, y - ev.y_bar
     resid = yt - ev.b_hat * xt
@@ -387,7 +403,8 @@ def apply_evidence_gate(report: ForecastReport, log_e_threshold: float) -> Forec
             for k in ("median_hours", "p10_hours", "p90_hours", "p_within_horizon", "horizon_hours", "now_level")
         }
     )
-    if report.status is ForecastStatus.INSUFFICIENT_HISTORY:
+    if report.status in (ForecastStatus.INSUFFICIENT_HISTORY, ForecastStatus.INSUFFICIENT_EVIDENCE):
+        # already abstaining for a more specific reason (e.g. NO_VARIATION): keep it
         return ForecastReport(
             report.status,
             report.reasons,

@@ -149,8 +149,9 @@ $g \in \{1, 10, 100\}$. They serve trend (forecast evidence), level-shift
 
 **Family-wise budget.** The session budget $\alpha_{\text{session}} = 0.10$
 is split across channels (drift 0.5, threshold 0.25, forecast 0.25) and by a
-union bound across the declared qubits and metrics:
-$\alpha_{\text{series}} = \alpha_{\text{session}}\cdot\text{share}/(n_q n_m)$.
+union bound across the declared qubits, metrics and provenances:
+$\alpha_{\text{series}} = \alpha_{\text{session}}\cdot\text{share}/(n_q n_m n_p)$
+($n_p = 1$ in every experiment reported here).
 Contexts of one qubit and metric are combined by averaging e-values (an
 e-value), plus a shared-change product term; time costs nothing extra.
 

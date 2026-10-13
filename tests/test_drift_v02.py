@@ -209,3 +209,40 @@ def test_budget_validation():
         ErrorBudget(shares={"drift": 0.5, "threshold": 0.5})
     with pytest.raises(ValueError):
         DriftConfig(combine_contexts="product")
+
+
+def test_each_provenance_counts_in_the_family_budget():
+    """Observed and measured T1 of one qubit are two tests of one quantity:
+    the per-group alpha must be halved, not granted twice (review finding)."""
+    prof = Profiler(config=DriftConfig(thresholds={}))
+    for i in range(6):
+        ts = T0 + timedelta(hours=i)
+        prof.add(Estimate(Metric.T1, (0,), Provenance.OBSERVED, ts, value=100e-6))
+        prof.add(_t1(100e-6, ts))
+    reps = prof.reports()
+    assert prof.family["n_provenances"] == 2
+    assert all(r.alpha["drift"] == pytest.approx(0.10 * 0.5 / 2) for r in reps)
+    single = Profiler(config=DriftConfig(thresholds={}))
+    single.add([_t1(100e-6, T0 + timedelta(hours=i)) for i in range(6)])
+    (r1,) = single.reports()
+    assert r1.alpha["drift"] == pytest.approx(0.10 * 0.5)
+
+
+def test_zero_share_disables_a_channel_instead_of_crashing():
+    cfg = DriftConfig(budget=ErrorBudget(shares={"drift": 0.75, "threshold": 0.25, "forecast": 0.0}))
+    prof = Profiler(config=cfg)
+    prof.add(flip_series(np.linspace(0.02, 0.045, 30), shots=20_000, seed=5))
+    (rep,) = prof.reports()
+    assert rep.alpha["forecast"] == 0 and rep.forecast["log_e_threshold"] == float("inf")
+    assert not [a for a in rep.alerts if a.kind == "forecast"]
+    assert all(v["status"] != "VALID_FORECAST" for v in rep.forecast["per_context"].values())
+
+
+def test_constant_vendor_series_reports_instead_of_crashing():
+    """A vendor value re-read unchanged at every snapshot has zero variation."""
+    prof = Profiler(config=DriftConfig(thresholds={Metric.T1: 80e-6}))
+    prof.add([Estimate(Metric.T1, (0,), Provenance.OBSERVED, T0 + timedelta(hours=i), value=100e-6) for i in range(8)])
+    (rep,) = prof.reports()
+    (fc,) = rep.forecast["per_context"].values()
+    assert fc["status"] == "INSUFFICIENT_EVIDENCE" and fc["reasons"][0]["code"] == "NO_VARIATION"
+    assert not rep.alerts

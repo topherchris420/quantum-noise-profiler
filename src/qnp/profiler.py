@@ -36,10 +36,12 @@ class Profiler:
         self.family: dict[str, Any] = {
             "n_qubits": None,
             "n_metrics": None,
+            "n_provenances": None,
             "frozen_at": None,
             "exceeded": False,
             "observed_qubits": 0,
             "observed_metrics": 0,
+            "observed_provenances": 0,
         }
         self.notices: list[str] = []
 
@@ -90,21 +92,28 @@ class Profiler:
         live = [(k, v) for k, v in groups.items() if any(e.status is Status.OK for es in v.values() for e in es)]
         n_q = len({k[1] for k, _ in live}) or 1
         n_m = len({k[0] for k, _ in live}) or 1
+        # provenances per (metric, qubits): each is a separate test of the same quantity
+        per_qm: dict[tuple, set] = {}
+        for (metric, qubits, prov), _ in live:
+            per_qm.setdefault((metric, qubits), set()).add(prov)
+        n_p = max((len(v) for v in per_qm.values()), default=1)
         fam = self.family
-        fam["observed_qubits"], fam["observed_metrics"] = n_q, n_m
+        fam["observed_qubits"], fam["observed_metrics"], fam["observed_provenances"] = n_q, n_m, n_p
         if fam["frozen_at"] is None:
             fam["n_qubits"] = b.n_qubits or n_q
             fam["n_metrics"] = b.n_metrics or n_m
+            fam["n_provenances"] = b.n_provenances or n_p
             fam["frozen_at"] = datetime.now().astimezone().isoformat()
-        if n_q > fam["n_qubits"] or n_m > fam["n_metrics"]:
+        if n_q > fam["n_qubits"] or n_m > fam["n_metrics"] or n_p > fam["n_provenances"]:
             if not fam["exceeded"]:
                 self.notices.append(
-                    f"monitoring family grew beyond its declaration ({n_q} qubits x {n_m} metrics > "
-                    f"{fam['n_qubits']} x {fam['n_metrics']}): the session error budget no longer holds; "
-                    "declare budget.n_qubits/n_metrics up front or start a new session"
+                    f"monitoring family grew beyond its declaration ({n_q} qubits x {n_m} metrics x "
+                    f"{n_p} provenances > {fam['n_qubits']} x {fam['n_metrics']} x {fam['n_provenances']}): "
+                    "the session error budget no longer holds; declare budget.n_qubits/n_metrics/n_provenances "
+                    "up front or start a new session"
                 )
             fam["exceeded"] = True
-        return {ch: b.alpha_series(ch, fam["n_qubits"], fam["n_metrics"]) for ch in CHANNELS}
+        return {ch: b.alpha_series(ch, fam["n_qubits"], fam["n_metrics"], fam["n_provenances"]) for ch in CHANNELS}
 
     def reports(self, now: datetime | None = None) -> list[GroupReport]:
         if self.legacy:
