@@ -55,7 +55,7 @@ jobs:
       - run: pip install uv
       - run: uv pip install --system --resolution lowest-direct -e ".[dev]"
       - run: pip list | grep -Ei "^(numpy|scipy|qiskit|qiskit-aer|cirq-core) "
-      - run: pytest -q -p no:cacheprovider tests/test_sequential.py tests/test_models_validation.py tests/test_forecast.py tests/test_measured_diagnostics.py tests/test_inferred_qiskit.py
+      - run: pytest -q -p no:cacheprovider tests/test_sequential.py tests/test_models_validation.py tests/test_forecast.py tests/test_measured_diagnostics.py tests/test_inferred_qiskit.py tests/test_sweep_design.py tests/test_readout_probes.py
 
   build:
     runs-on: ubuntu-latest
@@ -92,9 +92,11 @@ jobs:
       - run: |
           mkdir -p "$QNP_RESULTS_DIR"
           for e in calibrate C D F; do python experiments/run_v02.py $e --smoke --workers 2; done
+          for e in G H I; do python experiments/run_v03.py $e --smoke --workers 2; done
+          python experiments/run_v03.py pilot --fake FakeManilaV2 --submit --interval 0
       - name: smoke outputs validate against the schema and recompute exactly
         run: |
-          python tools/check_provenance.py --results-dir "$QNP_RESULTS_DIR" --allow-smoke
+          python tools/check_provenance.py --results-dir "$QNP_RESULTS_DIR" --allow-smoke --allow-rehearsal
           python tools/verify_results.py --results-dir "$QNP_RESULTS_DIR" --update
 
   results-integrity:
