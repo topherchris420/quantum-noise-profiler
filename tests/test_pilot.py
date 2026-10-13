@@ -96,6 +96,17 @@ def _raw(snap, qubits, rng, rates, drift=None):
     return {"snapshots": [snap, snap], "jobs": jobs, "calibration_history": {"available": False}}
 
 
+def test_reference_p_value_that_underflows_to_zero_counts_as_a_rejection():
+    snap = _snapshot()
+    qubits = P.select_qubits(snap)["qubits"]
+    rng = np.random.default_rng(2)
+    steady = {(q, prep): [0.02] * P.N_PROBE_BATCHES for q in qubits for prep in (0, 1)}
+    broken = np.r_[np.zeros(10), np.full(10, 0.6)]  # readout breaks halfway through the first sweep
+    s = P.analyze(_raw(snap, qubits, rng, steady, drift=(qubits[0], broken)), {"qubits": qubits})
+    assert s["P2_P3_sweeps"][f"sweep0:{qubits[0]}"]["reference_p"] == 0.0  # chi-square survival underflows
+    assert s["P2_n_reference_rejected"] >= 1
+
+
 def test_analysis_passes_on_well_behaved_data_and_flags_violations():
     snap = _snapshot()
     qubits = P.select_qubits(snap)["qubits"]

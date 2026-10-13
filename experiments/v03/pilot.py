@@ -303,7 +303,10 @@ def analyze(raw: dict, config: dict) -> dict:
                 else bool(e.ci_low <= vendor_t1 <= e.ci_high),
             }
     out["P2_P3_sweeps"] = p23
-    out["P2_n_reference_rejected"] = sum((v["reference_p"] or 1.0) < ALPHA for v in p23.values())
+    # None: no references to test; 0.0 (chi-square underflow) is the strongest rejection
+    out["P2_n_reference_rejected"] = sum(
+        v["reference_p"] is not None and v["reference_p"] < ALPHA for v in p23.values()
+    )
     out["P3_n_ok"] = sum(v["status"] == "ok" for v in p23.values())
     out["P3_n_fits"] = len(p23)
     # P4: the v0.3 engine on the probe series (family: the pilot qubits x readout_error)

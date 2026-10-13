@@ -30,8 +30,9 @@ account holder's authorization.
 
 ### Workload-safe thresholds (`qnp.measured`, adapters, `qnp.drift`)
 - **Readout probes.** Prepare-and-measure circuits (`readout_probe_circuits`;
-  any circuit of only X gates and terminal measurements) are recognised by
-  their structure in Qiskit and Cirq results and become MEASURED
+  any circuit of only X gates and terminal measurements in which no qubit is
+  held waiting for another qubit's measurement) are recognised by their
+  structure in Qiskit and Cirq results and become MEASURED
   `readout_error` estimates with contexts `p(1|0)` / `p(0|1)` and binomial
   counts.
 - **Thresholds apply to hardware properties only.** `DriftConfig.thresholds`

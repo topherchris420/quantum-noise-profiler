@@ -236,19 +236,25 @@ def readout_probe_preparations(circuit) -> dict[int, tuple[int, tuple[str, int, 
     into its own classical bit, so each measured qubit is prepared in a
     definite basis state and read out immediately. Anything else (another
     gate, a delay, a reset, control flow, parameters, an operation after a
-    measurement) makes the circuit workload. ``qnp.measured.
-    readout_probe_circuits`` and the ``probe`` plans of ``qnp.hardware``
-    build such circuits."""
+    measurement, a barrier that holds a qubit still to be measured until
+    another qubit's measurement has ended) makes the circuit workload: a
+    prepared |1> left waiting decays, and its error would depend on the
+    circuit. ``qnp.measured.readout_probe_circuits`` and the ``probe`` plans
+    of ``qnp.hardware`` build such circuits."""
     if circuit.parameters:
         return None
     prepared: dict[int, int] = {}
     measured: dict[int, tuple[str, int, int]] = {}
     clbits: set[int] = set()
+    to_measure = {circuit.find_bit(i.qubits[0]).index for i in circuit.data if i.operation.name == "measure"}
     for inst in circuit.data:
         name = inst.operation.name
         if name not in _PROBE_OPS:
             return None
         if name == "barrier":
+            held = {circuit.find_bit(x).index for x in inst.qubits}
+            if held & measured.keys() and held & (to_measure - measured.keys()):
+                return None  # a later measurement waits for an earlier one
             continue
         (q,) = (circuit.find_bit(x).index for x in inst.qubits)
         if q in measured:

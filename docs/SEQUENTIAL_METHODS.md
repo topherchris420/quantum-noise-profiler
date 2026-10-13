@@ -171,8 +171,10 @@ E6: 44%). `DriftConfig(thresholds=dict(V02_THRESHOLDS))` reproduces v0.2.
 Readout probes add a metric per qubit, so the family is declared with
 `n_metrics = 2` when both are monitored (each per-series α halves). Their
 counts are binomial, so their threshold channel keeps the exact guarantee of
-§2.2. The probes are recognised by their structure (only X gates and terminal
-measurements, at most one X per qubit). Experiment G of the v0.3 study tested
+§2.2. The probes are recognised by their structure: only X gates and
+terminal measurements, at most one X per qubit, and no qubit held waiting
+for another qubit's measurement (a waiting |1⟩ decays, so its error would
+depend on the circuit). Experiment G of the v0.3 study tested
 the change in simulation: false alerts after the E5 and E6 workload changes
 fell to 2% and 5%, none from the threshold channel (`results/V03_SUMMARY.md`
 §2).

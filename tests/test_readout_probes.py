@@ -53,12 +53,24 @@ def _with(build, n=1, c=1):
         _with(lambda qc: (qc.reset(0), qc.measure(0, 0))),
         _with(lambda qc: (qc.rx(Parameter("t"), 0), qc.measure(0, 0))),
         _with(lambda qc: (qc.measure(0, 0), qc.measure(1, 0)), n=2),  # two qubits into one bit
+        # q1, prepared in |1>, is held by the barrier until q0's measurement ends: it waits and decays
+        _with(lambda qc: (qc.x([0, 1]), qc.measure(0, 0), qc.barrier(0, 1), qc.measure(1, 1)), n=2, c=2),
         _with(lambda qc: qc.x(0)),  # nothing measured
         _mirror(),
     ],
 )
 def test_anything_else_is_workload(circuit):
     assert readout_probe_preparations(circuit) is None
+
+
+def test_instruction_order_without_a_wait_is_still_a_probe():
+    # nothing makes q1 wait for q0's measurement: the order of the instructions is not a schedule
+    qc = _with(lambda qc: (qc.measure(0, 0), qc.x(1), qc.measure(1, 1)), n=2, c=2)
+    assert readout_probe_preparations(qc) == {0: (0, ("c", 0, 0)), 1: (1, ("c", 1, 1))}
+    # a closing barrier after every measurement holds no qubit that is still to be measured
+    _zero, one = readout_probe_circuits([0, 1])
+    one.barrier()
+    assert readout_probe_preparations(one) == {0: (1, ("c", 0, 0)), 1: (1, ("c", 1, 1))}
 
 
 def test_estimate_readout_contexts_counts_and_validation():
@@ -183,3 +195,26 @@ def test_cirq_probes_match_qiskit_on_identical_outcomes():
     assert set(c_es) == set(q_es) == {((q,), c) for q in (3, 7) for c in ("p(1|0)", "p(0|1)")}
     for k in c_es:
         assert (c_es[k].successes, c_es[k].trials) == (q_es[k].successes, q_es[k].trials)
+
+
+def test_cirq_probe_must_not_leave_a_prepared_qubit_waiting():
+    import cirq
+
+    from qnp.adapters.cirq_adapter import readout_probe_preparations as cirq_preps
+
+    a, b = cirq.LineQubit.range(2)
+    together = cirq.Circuit(
+        [cirq.Moment([cirq.X(b)]), cirq.Moment([cirq.measure(a, key="a"), cirq.measure(b, key="b")])]
+    )
+    assert cirq_preps(together) == {a: (0, ("a", 0)), b: (1, ("b", 0))}
+    late_zero = cirq.Circuit([cirq.Moment([cirq.measure(a, key="a")]), cirq.Moment([cirq.measure(b, key="b")])])
+    assert cirq_preps(late_zero) == {a: (0, ("a", 0)), b: (0, ("b", 0))}  # waiting in |0> does not decay
+    held = cirq.Circuit(
+        [
+            cirq.Moment([cirq.X(a), cirq.X(b)]),
+            cirq.Moment([cirq.measure(a, key="a")]),
+            cirq.Moment([cirq.measure(b, key="b")]),
+        ]
+    )
+    idle = cirq.Circuit([cirq.Moment([cirq.X(a)]), cirq.Moment(), cirq.Moment([cirq.measure(a, key="a")])])
+    assert cirq_preps(held) is None and cirq_preps(idle) is None

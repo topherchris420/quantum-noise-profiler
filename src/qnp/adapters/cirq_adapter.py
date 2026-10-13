@@ -175,30 +175,33 @@ def readout_probe_preparations(circuit) -> dict[Any, tuple[int, tuple[str, int]]
     """If ``circuit`` is a readout probe (only X gates and terminal
     measurements, at most one X per qubit, no waits), ``{qubit: (prepared
     bit, (measurement key, column))}``; otherwise None. Same rule as the
-    Qiskit adapter."""
+    Qiskit adapter. Moments are time steps, so a qubit prepared in |1> must
+    be measured in the moment right after its X: an empty moment or another
+    qubit's measurement in between would leave it waiting, and decaying."""
     import cirq
 
     if cirq.is_parameterized(circuit):
         return None
-    prepared: dict[Any, int] = {}
+    prepared: dict[Any, int] = {}  # qubit -> moment of its X
     measured: dict[Any, tuple[str, int]] = {}
-    for op in circuit.all_operations():
-        if cirq.is_measurement(op):
-            key = cirq.measurement_key_name(op)
-            for col, q in enumerate(op.qubits):
-                if q in measured:
-                    return None
-                measured[q] = (key, col)
-            continue
-        if len(op.qubits) != 1 or canonical_gate_name(op) != "x":
-            return None
-        q = op.qubits[0]
-        if q in measured or prepared.get(q):
-            return None
-        prepared[q] = 1
+    for i, moment in enumerate(circuit):
+        for op in moment.operations:
+            if cirq.is_measurement(op):
+                key = cirq.measurement_key_name(op)
+                for col, q in enumerate(op.qubits):
+                    if q in measured or prepared.get(q, i - 1) != i - 1:
+                        return None
+                    measured[q] = (key, col)
+                continue
+            if len(op.qubits) != 1 or canonical_gate_name(op) != "x":
+                return None
+            q = op.qubits[0]
+            if q in measured or q in prepared:
+                return None
+            prepared[q] = i
     if not measured:
         return None
-    return {q: (prepared.get(q, 0), m) for q, m in measured.items()}
+    return {q: (int(q in prepared), m) for q, m in measured.items()}
 
 
 def _measured_bits(res, key: str, col: int, q) -> Any:

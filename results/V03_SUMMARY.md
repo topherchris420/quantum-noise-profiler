@@ -10,8 +10,11 @@ come from the run entries listed at the end. `tools/verify_results.py`
 recomputes every value from raw data. All three runs executed commit
 `8ea5b49` from a clean tree (`source_tree_sha256 b850a691…`). That commit
 added the protocol (`experiments/V03_PREREGISTRATION.md`) and was pushed
-before the first confirmatory run. Deviations: none
-(`results/V03_DEVIATIONS.md`). Full tables: `results/V03_TABLES.md`.
+before the first confirmatory run. Deviations from the protocol: none.
+Three code changes were made after the runs, none affecting a recorded
+result: a pre-data fix to the pilot's analysis code, a tighter
+readout-probe recognizer and a typing change (`results/V03_DEVIATIONS.md`).
+Full tables: `results/V03_TABLES.md`.
 Figures: `paper/figures/fig8`–`fig10`.
 
 **Scope.** G, H and I are simulations (Qiskit Aer, numpy). Nothing here is
