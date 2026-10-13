@@ -1,11 +1,46 @@
-# IBM Quantum validation pathway (pilot ready; not yet executed)
+# IBM Quantum validation pathway (not yet executed)
 
 No real-device job has been run for this project. Everything in `results/`
-is simulation. v0.3 adds a short, preregistered hardware pilot
-(Experiment P, `experiments/V03_PREREGISTRATION.md` §5) that runs with one
-command once an IBM Quantum account is available. This document describes
-how to run it, what it can and cannot establish, and the longer study that
-should follow it.
+is simulation. This document covers:
+
+- an invitation to collaborate on a proposed 30-day, **read-only**
+  observation study, which submits no jobs;
+- the safety properties of `qnp.hardware`;
+- **Experiment P**, a short QPU experiment preregistered with the v0.3 study
+  (`experiments/V03_PREREGISTRATION.md` §5, where it is called the hardware
+  pilot). It submits 14 jobs, so it is an active, separately authorized
+  experiment, not part of the read-only observation study. It is ready to
+  run and has not been run;
+- the proposed two-phase study, and what such studies could and could not
+  establish.
+
+## Invitation to collaborate
+
+We welcome independent replication of the recorded simulations and contact
+from quantum-hardware researchers who could help evaluate an **unstarted,
+proposed 30-day read-only observation pilot**. This is an invitation for
+feasibility discussion, **not** an announcement of a hardware partnership,
+device access, or operational readiness. Please
+[open a repository issue](https://github.com/topherchris420/quantum-noise-profiler/issues/new)
+with a description of the data source and permitted use, **not** raw
+restricted data, credentials, tokens, serial numbers, or provider account
+details. Any access or sharing must comply with the data owner's policies
+and authorization requirements.
+
+Useful information for scoping a pilot:
+
+- Hardware family/backend type (only if public or approved for release),
+  available qubit count, and the observation period.
+- Which calibration estimates can be exported: T1, T2, asymmetric readout
+  errors, two-qubit errors; their physical units and **per-property**
+  calibration timestamps, rather than just the collection timestamp.
+- Whether uncertainties, method details, or an **independent reference**
+  measurement exist, and how they were acquired.
+- Data permissions and restrictions on publication, retention and sharing;
+  a sanitized schema or synthetic example is enough to begin the discussion.
+
+Participation is voluntary; no submission of sensitive or nonpublic
+information is requested.
 
 ## Safety properties of `qnp.hardware`
 
@@ -23,10 +58,16 @@ Tested in `tests/test_hardware.py` and `tests/test_pilot.py` with
 `qiskit_ibm_runtime.fake_provider` backends (local simulation, no account,
 no network).
 
-## Running the pilot (Experiment P)
+## Experiment P: a short QPU experiment (preregistered, separately authorized, not run)
 
-The pilot answers one question: do the assumptions the monitor rests on hold
-on a real device over about two hours? It runs 14 jobs:
+Experiment P answers one question: do the assumptions the monitor rests on
+hold on a real device over about two hours?
+
+It is **not read-only**. It uses QPU time on the account it runs with, so
+run it only on an account you are authorized to use, after inspecting the
+dry run. It is a small instance of the active characterization described
+under Phase B below, and is not part of the read-only observation
+invitation. It submits 14 jobs:
 
 1. a T1 sweep on 5 qubits (one job; per qubit 15 delays on [0, 3 × vendor
    T1] in random order plus 5 ground references, 1000 shots per circuit);
@@ -69,7 +110,7 @@ hardware use, both fixed: backends with timing constraints reject delays off
 their grid (now rounded), and fake-backend simulation rejects qubits whose
 vendor T2 > 2·T1 (now excluded by the selection rule).
 
-What the pilot reports (`experiments/v03/pilot.py`):
+What Experiment P reports (`experiments/v03/pilot.py`):
 
 | Check | Meaning if it fails |
 |---|---|
@@ -97,20 +138,82 @@ which execution timestamps the service reports; whether calibration history
 - Fake backends are snapshots: their "calibration" never changes, and
   `properties(datetime=...)` is not supported on them.
 - Live-service behaviour (calibration history, `job.metrics()` timestamp
-  fields, plan quotas) is **unverified**: no IBM account was used. The pilot
-  records it.
+  fields, plan quotas) is **unverified**: no IBM account was used.
+  Experiment P records it.
 
-## After the pilot: the longer study
+## Proposed study: two distinct phases (neither executed)
 
-1. **Observed series, read-only, 30 days.** Hourly `HardwareSession.snapshot()`
-   of the pilot qubits. Cost: zero QPU time.
-2. **Measured T1/T2, twice daily**, interleaved design.
-3. **Readout probes with every monitored job**, plus mirror circuits of 2–3
-   depths analysed with exact contexts.
-4. **Analysis** with the v0.3 engine and the family declared up front
-   (`ErrorBudget(n_qubits=…, n_metrics=…, n_provenances=…)`), with the
-   fluctuation scale measured in the pilot deciding whether the 10% effect
-   gate must grow.
+### Phase A — read-only observation, 30 days
+
+Collect existing vendor calibration records or authorized snapshots without
+submitting jobs or using QPU time. The initial design is hourly
+`HardwareSession.snapshot()` on up to 5 selected qubits (subject to
+actual provider access and availability). Capture OBSERVED T1, T2, readout
+P(1|0), P(0|1), and two-qubit error with each property's calibration
+timestamp. Snapshots are read-only but may repeat stale vendor estimates;
+**hourly polling does not imply hourly recalibration or independent
+measurements**. Approved historical exports may be used instead of direct
+account access.
+
+Before inspecting outcomes, agree on a prospective analysis plan specifying
+the monitored family and contexts, data exclusions, time windows, baseline
+and alert rules, missing-data handling, independent-replication procedure,
+and which outputs may be shared. Keep any tuning data separate from
+held-out evaluation; record changes to the plan rather than retroactively
+calling them preregistered. No such real-hardware plan or pilot results
+are claimed here.
+
+**Phase A can test:** ingestion/provenance integrity, missingness,
+timestamp accuracy, alert consistency across repeated snapshots, and
+agreement with subsequently reported vendor calibration changes.
+It cannot independently validate the accuracy of error estimates or infer
+unobserved between-calibration drift. A lack of changes in stale vendor
+records is not proof of qubit stability.
+
+### Phase B — optional, separately authorized active characterization
+
+Only if collaborators and device operators separately approve experiments,
+review access rights and costs, and explicitly authorize each submission:
+
+1. **Measured T1/T2:** `plan_characterization(backend, "t1" |
+   "t2_echo", qubits, delays, shots=1000)` with 15 delays up to
+   3·T1(vendor). Example: 5 qubits × 2 sequences × 15 circuits × 1000
+   shots = 150,000 shots **per session**, before provider-specific limits,
+   queue times or additional controls. The dry-run plan must first be
+   inspected for estimated QPU time and cost.
+2. **Inferred probes:** `plan_characterization(..., "probe")` and optional
+   mirror circuits of 2–3 depths, using exact contexts and a fixed probe
+   workload so that workload changes are not confused with device changes.
+3. **Independent reference:** if possible, collect dense characterization
+   on the same qubits, with a defined reference measurement and analysis
+   window that do not reuse the monitor's own estimate as truth.
+4. **Evaluation:** declare the monitoring family before analysis
+   (`ErrorBudget(n_qubits=5, n_metrics=…)` is an example, not a validated
+   real-hardware setting); evaluate session-level false alerts, timely
+   detection, false confidence in accepted T1/T2 fits, forecast coverage,
+   abstention, workload robustness, and uncertainty intervals against
+   blinded/independent reference where available. Publish negative and
+   inconclusive outcomes subject to data permissions.
+
+These active experiments are **not read-only** and are **not included**
+in the 30-day observation-only invitation. `qnp.hardware` defaults to
+refusing submissions and requires explicit authorization and budget gates.
+
+### How Experiment P and v0.3 relate to the two phases
+
+- **Experiment P** is a two-hour, 14-job check of the kind listed under
+  Phase B, fixed in advance by the v0.3 preregistration. P.C1 (batch-to-batch
+  readout fluctuation against binomial noise) indicates whether the 10%
+  effect gate must grow before a longer study. P.C2 indicates whether
+  readout drifts within a job. Its protocol covers only this experiment;
+  the Phase A analysis plan has not been written.
+- **v0.3 defaults:**
+  - T1/T2 plans from `plan_characterization` use the interleaved design:
+    random delay order and 5 ground references.
+  - `"probe"` plans produce readout probes, reported as MEASURED
+    `readout_error` (`p(1|0)`, `p(0|1)`) rather than inferred rates. They
+    are the fixed probe workload that carries the absolute threshold
+    (`docs/SEQUENTIAL_METHODS.md` §3.1).
 
 ## What vendor calibration values are, and are not
 
@@ -130,7 +233,7 @@ dense dedicated characterization on the same qubits.
 ## What a hardware study would still not show
 
 - Generalisation beyond the chosen backend, qubits and weeks.
-- That the binomial and Gaussian models hold beyond the pilot's window: real
+- That the binomial and Gaussian models hold beyond the study's window: real
   batches can be correlated (drifts within a job, leakage, crosstalk), which
   the e-process guarantees assume away.
 - Operational value on hardware: cloud users cannot trigger a calibration,

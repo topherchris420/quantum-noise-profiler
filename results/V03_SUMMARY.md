@@ -1,8 +1,11 @@
 # Results summary: v0.3 preregistered follow-up
 
 **40 of 40 preregistered simulation criteria passed** (G 12/12, H 19/19,
-I 9/9). **The hardware pilot (Experiment P) has not been run.** It is ready,
-but it needs an IBM Quantum account, and none was available. All numbers
+I 9/9). **The hardware pilot (Experiment P) has not been run.** It is a
+short QPU experiment that submits 14 jobs. It is ready, but it needs an IBM
+Quantum account and the account holder's authorization, and none was
+available. It is separate from the read-only observation study proposed in
+`docs/HARDWARE_VALIDATION.md`. All numbers
 come from the run entries listed at the end. `tools/verify_results.py`
 recomputes every value from raw data. All three runs executed commit
 `8ea5b49` from a clean tree (`source_tree_sha256 b850a691…`). That commit

@@ -24,8 +24,8 @@ abstract: >-
   applies absolute thresholds only to workload-independent readout probes, and
   refuses to report relaxation times when the single-exponential model is
   contradicted by the data or the measurement drifted during the sweep.
-  Evaluated in preregistered simulation studies only; a hardware pilot is
-  preregistered.
+  Evaluated in preregistered simulation studies only; no hardware results
+  exist yet.
 references:
   - type: software
     title: Qiskit

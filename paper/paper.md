@@ -530,10 +530,13 @@ were not counted as a cost. All 9 criteria passed.
 ### 11.5 Hardware pilot (Experiment P): specified, not run
 
 The same protocol fixes a pilot of 14 jobs over about two hours on one IBM
-Quantum device: a T1 sweep on five qubits (interleaved design), twelve probe
-batches ten minutes apart, and a second sweep. A budget of 320,000 shots and
-420 s estimated QPU time is enforced before every job. The pilot checks the
-two assumptions the v0.3 methods rest on:
+Quantum device. It submits jobs and uses QPU time, so it is an active,
+separately authorized experiment, distinct from the read-only observation
+study proposed in `docs/HARDWARE_VALIDATION.md`. It consists of a T1 sweep
+on five qubits (interleaved design), twelve probe batches ten minutes
+apart, and a second sweep. A budget of 320,000 shots and 420 s estimated
+QPU time is enforced before every job. The pilot checks the two
+assumptions the v0.3 methods rest on:
 
 - that probe counts are binomial with a constant rate over two hours (P.C1,
   the drift channel's null hypothesis);

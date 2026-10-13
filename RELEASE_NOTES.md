@@ -5,9 +5,10 @@
 Research release addressing three of the v0.2 release blockers. The new
 methods were tested in a new preregistered simulation study
 (`experiments/V03_PREREGISTRATION.md`, committed and pushed before any
-confirmatory run; results in `results/V03_SUMMARY.md`). A hardware pilot is
-preregistered and ready to run, but has not run: it needs an IBM Quantum
-account.
+confirmatory run; results in `results/V03_SUMMARY.md`). A short QPU
+experiment (the hardware pilot, Experiment P; 14 jobs) is preregistered and
+ready to run. It has not run: it needs an IBM Quantum account and the
+account holder's authorization.
 
 ### Results (simulation; 40 of 40 preregistered criteria passed)
 - **G, workload changes on unchanged hardware.** Runs with a false alert
