@@ -25,3 +25,12 @@ The mirror circuits' inverse layer contains `sxdg`. `qnp.sim` now treats
 maps `X**-0.5` to `sxdg`, so exact contexts and noise agree across
 frameworks. Without this, Cirq would label the gate `rx` and Qiskit `sxdg`,
 which would fail F.C2 for a naming reason rather than a physical one.
+
+## DV3 — Experiment F interrupted and re-run (operational; no data recorded from the first attempt)
+
+The first launch of Experiment F (2026-10-13 00:30 UTC) was killed at job
+25 of 400 by a container restart. No run entry or raw file was written:
+results are only recorded when an experiment completes. Experiment F was
+re-launched with the same seeds and the same committed source (`src/` and
+`experiments/` unchanged since commit `0ea0224`). Nothing about the
+protocol changed.
