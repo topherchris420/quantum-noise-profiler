@@ -143,7 +143,7 @@ def reference_homogeneity(successes, shots) -> tuple[float, float, int]:
     dof = int(k.size - 1)
     if dof < 1:
         return 0.0, 1.0, 0
-    p = float(k.sum() / n.sum())
+    p = float(k.sum()) / float(n.sum())
     stat = _deviance(k, n, np.full(k.size, p)) if 0 < p < 1 else 0.0
     return stat, float(sps.chi2.sf(stat, dof)), dof
 
