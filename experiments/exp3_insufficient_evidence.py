@@ -8,7 +8,6 @@ import sys
 from datetime import datetime, timezone
 
 import numpy as np
-
 from common import T0, Criterion, print_entry, record, run_batch, workload
 
 REPS = int(sys.argv[1]) if len(sys.argv) > 1 else 100
@@ -32,11 +31,9 @@ def e3a_workload_identifiability(trials):
                 abstain += not good
                 ok += len(good)
                 covered += sum(e.ci_low <= truth <= e.ci_high for e in good)
-            trials.append({"part": "E3a", "workload": name, "seed": seed,
-                           "estimates": [e.to_dict() for e in es]})
+            trials.append({"part": "E3a", "workload": name, "seed": seed, "estimates": [e.to_dict() for e in es]})
         n_qb = 2 * min(REPS, 30)
-        out[name] = {"abstention_rate": abstain / n_qb, "n_ok": ok,
-                     "coverage_among_ok": covered / ok if ok else None}
+        out[name] = {"abstention_rate": abstain / n_qb, "n_ok": ok, "coverage_among_ok": covered / ok if ok else None}
     return out
 
 
@@ -55,8 +52,7 @@ def e3b_binomial_calibration(trials):
                 if e.status is Status.OK:
                     ok += 1
                     covered += e.ci_low <= p <= e.ci_high
-            cell = {"abstention_rate": 1 - ok / (REPS * 10),
-                    "coverage_among_ok": covered / ok if ok else None}
+            cell = {"abstention_rate": 1 - ok / (REPS * 10), "coverage_among_ok": covered / ok if ok else None}
             out[f"p={p},n={n}"] = cell
             trials.append({"part": "E3b", "p": p, "n": n, **cell})
     return out
@@ -88,9 +84,11 @@ def e3c_t1_delay_range(trials):
             stats["covered"] += cov
             stats["false_conf"] += ok and not cov
             trials.append({"part": "E3c", "range_over_T1": r, "rep": rep, "estimate": est.to_dict()})
-        out[f"r={r}"] = {"abstention_rate": 1 - stats["ok"] / REPS,
-                         "coverage_among_ok": stats["covered"] / stats["ok"] if stats["ok"] else None,
-                         "false_confidence_rate": stats["false_conf"] / REPS}
+        out[f"r={r}"] = {
+            "abstention_rate": 1 - stats["ok"] / REPS,
+            "coverage_among_ok": stats["covered"] / stats["ok"] if stats["ok"] else None,
+            "false_confidence_rate": stats["false_conf"] / REPS,
+        }
     return out
 
 
@@ -111,8 +109,10 @@ def e3d_misspecification(trials):
         stats["ok"] += ok
         stats["false_conf"] += ok and not (est.ci_low <= T1 <= est.ci_high)
         trials.append({"part": "E3d-fluct", "rep": rep, "estimate": est.to_dict()})
-    out["fluctuating_T1"] = {"abstention_rate": 1 - stats["ok"] / REPS,
-                             "false_confidence_rate": stats["false_conf"] / REPS}
+    out["fluctuating_T1"] = {
+        "abstention_rate": 1 - stats["ok"] / REPS,
+        "false_confidence_rate": stats["false_conf"] / REPS,
+    }
     # (ii) bi-exponential: no single T1 exists; abstaining is the right answer.
     ok, values = 0, []
     for rep in range(REPS):
@@ -122,8 +122,10 @@ def e3d_misspecification(trials):
         if est.value is not None:
             values.append(est.value)
         trials.append({"part": "E3d-biexp", "rep": rep, "estimate": est.to_dict()})
-    out["bi_exponential"] = {"abstention_rate": 1 - ok / REPS,
-                             "median_reported_T1_us": float(np.median(values) * 1e6) if values else None}
+    out["bi_exponential"] = {
+        "abstention_rate": 1 - ok / REPS,
+        "median_reported_T1_us": float(np.median(values) * 1e6) if values else None,
+    }
     return out
 
 
@@ -140,16 +142,32 @@ def main():
     b_low_n = [c["abstention_rate"] for k, c in summary["E3b"].items() if int(k.split("n=")[1]) < 200]
     criteria = [
         Criterion("E3.C1", "f=0 workload: abstention rate", 1.0, summary["E3a"]["f=0"]["abstention_rate"], ">="),
-        Criterion("E3.C2", "f>0 workloads: min coverage among OK", 0.90,
-                  min(summary["E3a"][k]["coverage_among_ok"] or 0 for k in ("f=0.25", "f=1")), ">="),
+        Criterion(
+            "E3.C2",
+            "f>0 workloads: min coverage among OK",
+            0.90,
+            min(summary["E3a"][k]["coverage_among_ok"] or 0 for k in ("f=0.25", "f=1")),
+            ">=",
+        ),
         Criterion("E3.C3", "binomial: min coverage over reported cells", 0.90, min(b_reported), ">="),
         Criterion("E3.C4", "binomial: abstention when n < min_shots", 1.0, min(b_low_n), ">="),
-        Criterion("E3.C5", "T1 delay range: max false-confidence rate", 0.10,
-                  max(c["false_confidence_rate"] for c in summary["E3c"].values()), "<="),
-        Criterion("E3.C6", "fluctuating T1: false-confidence rate", 0.10,
-                  summary["E3d"]["fluctuating_T1"]["false_confidence_rate"], "<="),
-        Criterion("E3.C7", "bi-exponential: abstention rate", 0.50,
-                  summary["E3d"]["bi_exponential"]["abstention_rate"], ">="),
+        Criterion(
+            "E3.C5",
+            "T1 delay range: max false-confidence rate",
+            0.10,
+            max(c["false_confidence_rate"] for c in summary["E3c"].values()),
+            "<=",
+        ),
+        Criterion(
+            "E3.C6",
+            "fluctuating T1: false-confidence rate",
+            0.10,
+            summary["E3d"]["fluctuating_T1"]["false_confidence_rate"],
+            "<=",
+        ),
+        Criterion(
+            "E3.C7", "bi-exponential: abstention rate", 0.50, summary["E3d"]["bi_exponential"]["abstention_rate"], ">="
+        ),
     ]
     entry = record("E3_insufficient_evidence", {"reps": REPS}, summary, criteria, trials, started)
     print_entry(entry)

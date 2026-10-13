@@ -6,8 +6,9 @@ import sys
 from datetime import datetime, timezone
 
 import numpy as np
-
 from common import Criterion, first_index, print_entry, record, stream
+
+from qnp import LegacyDriftConfig  # v0.1 protocol: frozen v0.1 decision rules
 
 N_SEEDS = int(sys.argv[1]) if len(sys.argv) > 1 else 50
 N_BATCHES, STEP_AT, SHOTS, BASE = 48, 24, 2000, 0.02
@@ -37,10 +38,11 @@ def main():
     for name, ratio in RATIOS.items():
         sched = np.where(np.arange(N_BATCHES) < STEP_AT, BASE, BASE * ratio)
         for seed in range(N_SEEDS):
-            log = stream(sched, Q1, seed + 1000 * list(RATIOS).index(name), SHOTS)
+            log = stream(sched, Q1, seed + 1000 * list(RATIOS).index(name), SHOTS, config=LegacyDriftConfig())
             pre = [b for b in log if b["i"] < STEP_AT] if ratio != 1.0 else log
-            false = any(alarm(0)(a) for b in pre for a in b["alerts"]) or \
-                any(alarm(1)(a) for b in log for a in b["alerts"])
+            false = any(alarm(0)(a) for b in pre for a in b["alerts"]) or any(
+                alarm(1)(a) for b in log for a in b["alerts"]
+            )
             post = [b for b in log if b["i"] >= STEP_AT]
             i_det = first_index(post, alarm(0)) if ratio != 1.0 else None
             i_shew = shewhart_first(log)
@@ -50,10 +52,21 @@ def main():
             if ratio != 1.0:
                 delays[name].append(None if i_det is None else i_det - STEP_AT)
                 shew_delays[name].append(None if (i_shew is None or i_shew < STEP_AT) else i_shew - STEP_AT)
-            trials.append({"condition": name, "seed": seed, "log": log, "i_detect": i_det,
-                           "i_shewhart": i_shew, "false_alarm": false})
-            print(f"{name} seed {seed}: detect delay={None if i_det is None else i_det - STEP_AT} "
-                  f"shewhart={i_shew} false={false}", flush=True)
+            trials.append(
+                {
+                    "condition": name,
+                    "seed": seed,
+                    "log": log,
+                    "i_detect": i_det,
+                    "i_shewhart": i_shew,
+                    "false_alarm": false,
+                }
+            )
+            print(
+                f"{name} seed {seed}: detect delay={None if i_det is None else i_det - STEP_AT} "
+                f"shewhart={i_shew} false={false}",
+                flush=True,
+            )
 
     def within(xs, k):
         return float(np.mean([x is not None and x <= k for x in xs])) if xs else float("nan")
@@ -81,10 +94,22 @@ def main():
         Criterion("E2.C3", "runs with any false WARNING/CRITICAL", 0.10, summary["false_alarm_run_rate"], "<="),
         Criterion("E2.C4", "spec claim: x1.1 detected within 20 circuits", 0.80, summary["x1.1_within_5"], ">="),
     ]
-    entry = record("E2_sudden_degradation",
-                   {"n_batches": N_BATCHES, "step_at": STEP_AT, "shots": SHOTS, "base": BASE,
-                    "ratios": RATIOS, "circuits_per_batch": 4, "deterministic_per_batch": 2},
-                   summary, criteria, trials, started)
+    entry = record(
+        "E2_sudden_degradation",
+        {
+            "n_batches": N_BATCHES,
+            "step_at": STEP_AT,
+            "shots": SHOTS,
+            "base": BASE,
+            "ratios": RATIOS,
+            "circuits_per_batch": 4,
+            "deterministic_per_batch": 2,
+        },
+        summary,
+        criteria,
+        trials,
+        started,
+    )
     print_entry(entry)
 
 

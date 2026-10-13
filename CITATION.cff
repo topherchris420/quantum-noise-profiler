@@ -1,0 +1,49 @@
+cff-version: 1.2.0
+title: "Quantum Noise Profiler: provenance-aware, sequentially calibrated qubit noise monitoring"
+message: "If you use this software or its results, please cite it as below, and cite the frameworks it builds on (Qiskit, Qiskit Aer, Qiskit Experiments, Cirq)."
+type: software
+authors:
+  - name: "Vers3Dynamics"
+version: "0.2.0.dev0"
+date-released: "2026-10-12"
+license: MIT
+repository-code: "https://github.com/topherchris420/quantum-noise-profiler"
+keywords:
+  - quantum computing
+  - noise characterization
+  - drift detection
+  - sequential testing
+  - e-values
+  - anytime-valid inference
+  - reproducibility
+abstract: >-
+  A monitoring library that tracks per-qubit noise with explicit provenance
+  (observed, inferred, measured), detects degradation with anytime-valid
+  e-processes under an explicit session error budget, issues threshold-crossing
+  forecasts with predictive intervals and machine-readable abstention reasons,
+  and refuses to report relaxation times when the single-exponential model is
+  contradicted by the data. Evaluated in preregistered simulation studies only.
+references:
+  - type: software
+    title: Qiskit
+    authors: [{name: "Qiskit contributors"}]
+    url: "https://github.com/Qiskit/qiskit"
+  - type: software
+    title: Qiskit Aer
+    authors: [{name: "Qiskit contributors"}]
+    url: "https://github.com/Qiskit/qiskit-aer"
+  - type: software
+    title: Qiskit Experiments
+    authors: [{name: "Qiskit contributors"}]
+    url: "https://github.com/Qiskit-Community/qiskit-experiments"
+  - type: software
+    title: Cirq
+    authors: [{name: "Cirq Developers"}]
+    url: "https://github.com/quantumlib/Cirq"
+  - type: article
+    title: "Game-theoretic statistics and safe anytime-valid inference"
+    authors: [{family-names: Ramdas, given-names: Aaditya}, {family-names: Grünwald, given-names: Peter}, {family-names: Vovk, given-names: Vladimir}, {family-names: Shafer, given-names: Glenn}]
+    journal: "Statistical Science"
+    volume: 38
+    issue: 4
+    year: 2023

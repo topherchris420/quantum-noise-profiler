@@ -1,5 +1,7 @@
 # Design (Phase 2)
 
+> **v0.2 note.** The drift, threshold and forecast rules below are the v0.1 design, kept for the record and available as `LegacyDriftConfig`. The v0.2 engine is described in `docs/SEQUENTIAL_METHODS.md` and `paper/paper.md` §3–5.
+
 ## Principle
 Every number carries **how we know it**. Where the data can't support a
 number, the profiler says so (`status = insufficient_evidence`, `value = None`,

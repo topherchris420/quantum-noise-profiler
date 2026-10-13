@@ -37,17 +37,49 @@ def _bucket(count: int, edges: tuple[int, ...]) -> str:
     return f">{edges[-1]}"
 
 
+CONTEXT_MODES = ("bucket", "exact")
+
+
+def format_idle(idle_ns: float, idle_dt: int = 0) -> str:
+    parts = []
+    if idle_ns:
+        parts.append(f"{idle_ns:.6g}ns")
+    if idle_dt:
+        parts.append(f"{idle_dt}dt")
+    return "+".join(parts) if parts else "0"
+
+
 @dataclass(frozen=True)
 class QubitIdeal:
-    """What the noiseless circuit predicts for one measured qubit."""
+    """What the noiseless circuit predicts for one measured qubit.
+
+    ``mode="bucket"`` (default, v0.1 behaviour): context = ideal bit and
+    bucketed 1q/2q gate counts. Idle time and gate composition are not part
+    of the context, so workloads that differ only in those are pooled.
+    ``mode="exact"``: context = ideal bit, exact per-gate-name counts on the
+    qubit's path, and total explicit idle time (``delay`` / ``WaitGate``).
+    Exact contexts never pool circuits whose noiseless paths differ in gate
+    composition or idle time; the price is more, thinner series.
+    """
 
     bit: int | None  # deterministic ideal bit, or None if not deterministic
     n_1q: int = 0
     n_2q: int = 0
     reason: str = ""  # why bit is None
+    gate_counts: tuple[tuple[str, int], ...] = ()
+    idle_ns: float = 0.0
+    idle_dt: int = 0
+    mode: str = "bucket"
+
+    def __post_init__(self) -> None:
+        if self.mode not in CONTEXT_MODES:
+            raise ValueError(f"context mode must be one of {CONTEXT_MODES}, got {self.mode!r}")
 
     @property
     def context(self) -> str:
+        if self.mode == "exact":
+            ops = ".".join(f"{name}{count}" for name, count in sorted(self.gate_counts)) or "none"
+            return f"ideal={self.bit}|ops={ops}|idle={format_idle(self.idle_ns, self.idle_dt)}"
         return f"ideal={self.bit}|1q{_bucket(self.n_1q, _ONEQ_EDGES)}|2q{_bucket(self.n_2q, _TWOQ_EDGES)}"
 
 
@@ -78,20 +110,35 @@ def flip_estimates(
         if t.shots < min_shots:
             out.append(
                 insufficient(
-                    Metric.EFFECTIVE_FLIP, (q,), Provenance.INFERRED,
+                    Metric.EFFECTIVE_FLIP,
+                    (q,),
+                    Provenance.INFERRED,
                     f"{t.shots} shots < min_shots={min_shots}",
-                    timestamp, successes=t.flips, trials=t.shots,
-                    context=ctx, source=source, assumptions=FLIP_ASSUMPTIONS,
+                    timestamp,
+                    successes=t.flips,
+                    trials=t.shots,
+                    context=ctx,
+                    source=source,
+                    assumptions=FLIP_ASSUMPTIONS,
                 )
             )
             continue
         mean, lo, hi = beta_interval(t.flips, t.shots, level)
         out.append(
             Estimate(
-                metric=Metric.EFFECTIVE_FLIP, qubits=(q,), provenance=Provenance.INFERRED,
-                timestamp=timestamp, status=Status.OK, value=mean,
-                ci_low=lo, ci_high=hi, ci_level=level,
-                successes=t.flips, trials=t.shots, context=ctx, source=source,
+                metric=Metric.EFFECTIVE_FLIP,
+                qubits=(q,),
+                provenance=Provenance.INFERRED,
+                timestamp=timestamp,
+                status=Status.OK,
+                value=mean,
+                ci_low=lo,
+                ci_high=hi,
+                ci_level=level,
+                successes=t.flips,
+                trials=t.shots,
+                context=ctx,
+                source=source,
                 assumptions=FLIP_ASSUMPTIONS,
             )
         )
@@ -99,8 +146,12 @@ def flip_estimates(
         if q not in covered:
             out.append(
                 insufficient(
-                    Metric.EFFECTIVE_FLIP, (q,), Provenance.INFERRED, reason,
-                    timestamp, source=source,
+                    Metric.EFFECTIVE_FLIP,
+                    (q,),
+                    Provenance.INFERRED,
+                    reason,
+                    timestamp,
+                    source=source,
                 )
             )
     return out

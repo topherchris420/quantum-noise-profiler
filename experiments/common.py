@@ -25,11 +25,27 @@ BATCH_INTERVAL = timedelta(minutes=10)
 
 # --------------------------------------------------------------------------- provenance of runs
 
+
 def _git(*args: str) -> str:
     try:
         return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
     except Exception:
         return "unknown"
+
+
+def source_tree_hash() -> str:
+    """SHA-256 over the contents of src/ and experiments/ (sorted paths), so a
+    run can prove which code it executed independently of git state."""
+    import hashlib
+
+    h = hashlib.sha256()
+    for sub in ("src", "experiments"):
+        for path in sorted((ROOT / sub).rglob("*.py")):
+            if "__pycache__" in path.parts:
+                continue
+            h.update(str(path.relative_to(ROOT)).encode())
+            h.update(path.read_bytes())
+    return h.hexdigest()
 
 
 def environment() -> dict:
@@ -42,6 +58,8 @@ def environment() -> dict:
     return {
         "git_commit": _git("rev-parse", "HEAD"),
         "git_dirty": bool(_git("status", "--porcelain", "--", "src", "experiments")),
+        "source_tree_sha256": source_tree_hash(),
+        "captured_at": datetime.now(timezone.utc).isoformat(),
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "packages": pkgs,
@@ -64,28 +82,54 @@ class Criterion:
         return {**self.__dict__, "passed": self.passed}
 
 
-def record(experiment: str, config: dict, summary: dict, criteria: list[Criterion],
-           trials: list[dict], started: datetime, notes: str = "") -> dict:
+def record(
+    experiment: str,
+    config: dict,
+    summary: dict,
+    criteria: list[Criterion],
+    trials: list[dict],
+    started: datetime,
+    notes: str = "",
+    env_at_start: dict | None = None,
+    protocol: str = "",
+    compress: bool = False,
+) -> dict:
     """Append one run to results/runs.jsonl and its raw trials to results/raw/.
-    Never overwrites; failures are recorded exactly like successes."""
+    Never overwrites; failures are recorded exactly like successes.
+
+    ``env_at_start`` should be ``environment()`` captured before the first
+    trial (v0.1 recorded the environment at completion only; see
+    docs/V01_AUDIT.md D4). ``protocol`` names the preregistration file and
+    section that fixed the criteria."""
     RESULTS.mkdir(exist_ok=True)
     (RESULTS / "raw").mkdir(exist_ok=True)
     run_id = f"{experiment}-{started.strftime('%Y%m%dT%H%M%S')}-{uuid.uuid4().hex[:6]}"
-    raw_path = RESULTS / "raw" / f"{run_id}.jsonl"
-    with raw_path.open("x") as f:
-        for t in trials:
-            f.write(json.dumps(t, default=_jsonable) + "\n")
+    raw_path = RESULTS / "raw" / (f"{run_id}.jsonl.gz" if compress else f"{run_id}.jsonl")
+    if compress:
+        import gzip
+
+        payload = "".join(json.dumps(t, default=_jsonable) + "\n" for t in trials).encode()
+        with raw_path.open("xb") as fh, gzip.GzipFile(fileobj=fh, mode="wb", mtime=0, compresslevel=9) as gz:
+            gz.write(payload)
+    else:
+        with raw_path.open("x") as f:
+            for t in trials:
+                f.write(json.dumps(t, default=_jsonable) + "\n")
     entry = {
         "run_id": run_id,
         "experiment": experiment,
         "started": started.isoformat(),
         "finished": datetime.now(timezone.utc).isoformat(),
         "environment": environment(),
+        "environment_at_start": env_at_start,
+        "protocol": protocol,
         "config": config,
         "summary": summary,
         "criteria": [c.to_dict() for c in criteria],
         "passed_all": all(c.passed for c in criteria),
-        "raw": os.path.relpath(raw_path, ROOT).replace("\\", "/"),
+        # logical path inside a results directory; tools resolve it against the
+        # directory they verify (the repository's results/ or a smoke directory)
+        "raw": f"results/raw/{raw_path.name}",
         "notes": notes,
     }
     with (RESULTS / "runs.jsonl").open("a") as f:
@@ -113,6 +157,7 @@ def print_entry(entry: dict) -> None:
 
 
 # --------------------------------------------------------------------------- simulated workload
+
 
 def workload(n_det_pairs: int = 1, n_random: int = 2, seed: int = 1234):
     """A two-qubit job: deterministic 'mirror' circuits (random layer, then its
@@ -195,16 +240,27 @@ def stream(p0_schedule, p1_schedule, seed: int, shots: int, config=None) -> list
         counts = run_batch(circuits, p0, p1, shots, seed * 10_000 + i)
         prof.ingest_qiskit(circuits, counts, ts)
         alerts = prof.check(now=ts)
-        log.append({
-            "i": i, "p_true": [p0, p1],
-            "naive": [naive_rate(counts, circuits, 0), naive_rate(counts, circuits, 1)],
-            "alerts": [{"kind": a.kind, "level": a.level.value, "qubit": a.qubits[0],
+        log.append(
+            {
+                "i": i,
+                "p_true": [p0, p1],
+                "naive": [naive_rate(counts, circuits, 0), naive_rate(counts, circuits, 1)],
+                "alerts": [
+                    {
+                        "kind": a.kind,
+                        "level": a.level.value,
+                        "qubit": a.qubits[0],
                         "context": a.context,
-                        **{k: a.details.get(k) for k in ("hours_to_threshold_median", "probability",
-                                                         "predictive_tail_probability")
-                           if a.details.get(k) is not None}}
-                       for a in alerts],
-        })
+                        **{
+                            k: a.details.get(k)
+                            for k in ("hours_to_threshold_median", "probability", "predictive_tail_probability")
+                            if a.details.get(k) is not None
+                        },
+                    }
+                    for a in alerts
+                ],
+            }
+        )
     return log
 
 

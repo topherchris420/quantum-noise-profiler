@@ -27,12 +27,18 @@ prof.observe_qiskit_target(backend.target, t0)
 
 # 2. MEASURED: a dedicated T1 sweep on qubit 0.
 truth_t1 = backend.target.qubit_properties[0].t1
-prof.add(run_t1(AerSimulator.from_backend(backend), 0, np.linspace(0, 3 * truth_t1, 15),
-                shots=1000, seed=1, timestamp=t0))
+prof.add(
+    run_t1(AerSimulator.from_backend(backend), 0, np.linspace(0, 3 * truth_t1, 15), shots=1000, seed=1, timestamp=t0)
+)
 
 # 3. INFERRED: ordinary jobs. One deterministic circuit, one that isn't.
-det = QuantumCircuit(2); det.x(0); det.measure_all()
-bell = QuantumCircuit(2); bell.h(0); bell.cx(0, 1); bell.measure_all()
+det = QuantumCircuit(2)
+det.x(0)
+det.measure_all()
+bell = QuantumCircuit(2)
+bell.h(0)
+bell.cx(0, 1)
+bell.measure_all()
 for i in range(12):
     p0 = 0.02 if i < 8 else 0.035  # qubit 0 readout degrades after job 8
     nm = NoiseModel()

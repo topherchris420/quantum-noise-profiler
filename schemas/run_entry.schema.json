@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/topherchris420/quantum-noise-profiler/schemas/run_entry.schema.json",
+  "title": "qnp experiment run entry (one line of results/runs.jsonl)",
+  "type": "object",
+  "required": ["run_id", "experiment", "started", "finished", "environment", "config", "summary", "criteria", "passed_all", "raw", "notes"],
+  "properties": {
+    "run_id": {"type": "string", "pattern": "^[A-Za-z0-9_.]+-[0-9]{8}T[0-9]{6}-[0-9a-f]{6}$"},
+    "experiment": {"type": "string", "minLength": 1},
+    "started": {"type": "string", "format": "date-time"},
+    "finished": {"type": "string", "format": "date-time"},
+    "environment": {"$ref": "#/$defs/environment"},
+    "environment_at_start": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/environment"}]},
+    "protocol": {"type": "string"},
+    "config": {"type": "object"},
+    "summary": {"type": "object"},
+    "criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "description", "threshold", "observed", "comparison", "passed"],
+        "properties": {
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "threshold": {"type": "number"},
+          "observed": {"type": "number"},
+          "comparison": {"enum": [">=", "<="]},
+          "passed": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "passed_all": {"type": "boolean"},
+    "raw": {"type": "string", "pattern": "^results/raw/[^/]+\\.jsonl(\\.gz)?$"},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "environment": {
+      "type": "object",
+      "required": ["git_commit", "git_dirty", "python", "platform", "packages"],
+      "properties": {
+        "git_commit": {"type": "string", "pattern": "^([0-9a-f]{40}|unknown)$"},
+        "git_dirty": {"type": "boolean"},
+        "source_tree_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "captured_at": {"type": "string", "format": "date-time"},
+        "python": {"type": "string"},
+        "platform": {"type": "string"},
+        "packages": {"type": "object", "additionalProperties": {"type": ["string", "null"]}}
+      },
+      "additionalProperties": false
+    }
+  }
+}

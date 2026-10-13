@@ -1,0 +1,8 @@
+[
+  {
+    "run_id": "E2_matched_comparison-20261012T192652-b82408",
+    "issue": "git_dirty=true: the re-analysis ran before its code was committed",
+    "resolution": "the recorded source_tree_sha256 (start and end identical) equals the tree hash of commit a96224c, which committed exactly that code; tools/check_provenance.py re-verifies this from git on every run",
+    "commit": "a96224c71c4abcabb9b46b39bd40b6d6911590c1"
+  }
+]
