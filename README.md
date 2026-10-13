@@ -18,25 +18,25 @@ session, and refuses to report estimates its data or model cannot support.**
 Christopher Woodyard, Vers3Dynamics · October 2026 · 10 pages · simulation evidence only, no hardware data.
 
 <p>
-  <a href="docs/report/qnp-technical-report.pdf"><img src="docs/report/qnp-report-p01.png" width="49%" alt="Report cover"></a>
-  <a href="docs/report/qnp-technical-report.pdf"><img src="docs/report/qnp-report-p02.png" width="49%" alt="Summary for decision-makers"></a>
+  <a href="https://github.com/topherchris420/quantum-noise-profiler/blob/main/docs/report/qnp-technical-report.pdf"><img src="https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p01.png" width="49%" alt="Report cover"></a>
+  <a href="https://github.com/topherchris420/quantum-noise-profiler/blob/main/docs/report/qnp-technical-report.pdf"><img src="https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p02.png" width="49%" alt="Summary for decision-makers"></a>
 </p>
 
-**[Read the full report (PDF)](docs/report/qnp-technical-report.pdf)**
+**[Read the full report (PDF)](https://github.com/topherchris420/quantum-noise-profiler/blob/main/docs/report/qnp-technical-report.pdf)**
 
 <details>
 <summary>All pages</summary>
 
-![Page 1](docs/report/qnp-report-p01.png)
-![Page 2](docs/report/qnp-report-p02.png)
-![Page 3](docs/report/qnp-report-p03.png)
-![Page 4](docs/report/qnp-report-p04.png)
-![Page 5](docs/report/qnp-report-p05.png)
-![Page 6](docs/report/qnp-report-p06.png)
-![Page 7](docs/report/qnp-report-p07.png)
-![Page 8](docs/report/qnp-report-p08.png)
-![Page 9](docs/report/qnp-report-p09.png)
-![Page 10](docs/report/qnp-report-p10.png)
+![Page 1](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p01.png)
+![Page 2](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p02.png)
+![Page 3](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p03.png)
+![Page 4](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p04.png)
+![Page 5](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p05.png)
+![Page 6](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p06.png)
+![Page 7](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p07.png)
+![Page 8](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p08.png)
+![Page 9](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p09.png)
+![Page 10](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p10.png)
 
 </details>
 
@@ -122,7 +122,7 @@ illustrative degradation rates and qubits degrading about once per day:
 - **What did not hold up:** a calibrated CUSUM on the same probes did as
   well as the v0.3 engine.
 
-![Failed jobs against calibrations per qubit-day](paper/figures/fig10_operational_frontier.png)
+![Failed jobs against calibrations per qubit-day](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/paper/figures/fig10_operational_frontier.png)
 
 ### v0.2 study: 53 of 62 preregistered checks passed
 
@@ -149,7 +149,7 @@ depends on channel-specific null assumptions; see
 measured across correlated forecasts within runs, not independent hardware
 trials. Nothing here establishes performance on real devices.
 
-![False alerts accumulate under v0.1 and stay bounded under v0.2](paper/figures/fig3_false_alert_accumulation.png)
+![False alerts accumulate under v0.1 and stay bounded under v0.2](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/paper/figures/fig3_false_alert_accumulation.png)
 
 **Where v0.2 failed (preregistered criteria):**
 
