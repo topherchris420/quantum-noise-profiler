@@ -5,6 +5,34 @@ No real-device job has been run for this project. Everything in
 study would be run with `qnp.hardware`, and what such a study could and
 could not establish.
 
+## Invitation to collaborate
+
+We welcome independent replication of the recorded simulations and contact
+from quantum-hardware researchers who could help evaluate an **unstarted,
+proposed 30-day read-only observation pilot**. This is an invitation for
+feasibility discussion, **not** an announcement of a hardware partnership,
+device access, or operational readiness. Please
+[open a repository issue](https://github.com/topherchris420/quantum-noise-profiler/issues/new)
+with a description of the data source and permitted use, **not** raw
+restricted data, credentials, tokens, serial numbers, or provider account
+details. Any access or sharing must comply with the data owner's policies
+and authorization requirements.
+
+Useful information for scoping a pilot:
+
+- Hardware family/backend type (only if public or approved for release),
+  available qubit count, and the observation period.
+- Which calibration estimates can be exported: T1, T2, asymmetric readout
+  errors, two-qubit errors; their physical units and **per-property**
+  calibration timestamps, rather than just the collection timestamp.
+- Whether uncertainties, method details, or an **independent reference**
+  measurement exist, and how they were acquired.
+- Data permissions and restrictions on publication, retention and sharing;
+  a sanitized schema or synthetic example is enough to begin the discussion.
+
+Participation is voluntary; no submission of sensitive or nonpublic
+information is requested.
+
 ## Safety properties of `qnp.hardware`
 
 | Property | How it is enforced |
@@ -33,20 +61,63 @@ backends (local simulation, no account, no network).
   timestamp fields, Open-plan quotas) is **unverified**: no IBM account was
   used.
 
-## Proposed first study (requires an account and an explicit budget)
+## Proposed study: two distinct phases (neither executed)
 
-1. **Observed series, read-only, 30 days.** Hourly `HardwareSession.snapshot()`
-   of 5 chosen qubits. Cost: zero QPU time. Output: OBSERVED T1, T2,
-   readout P(1|0), P(0|1), 2q error, each with its calibration timestamp.
-2. **Measured T1/T2, twice daily.** `plan_characterization(backend, "t1" |
-   "t2_echo", qubits, delays, shots=1000)` with 15 delays to 3·T1(vendor).
-   Example budget: 5 qubits × 2 sequences × 15 circuits × 1000 shots =
-   150 000 shots per session. Run dry first; the plan reports an estimated
-   QPU time to compare with the account's quota.
-3. **Inferred probes, hourly.** `plan_characterization(..., "probe")` plus
-   mirror circuits of 2–3 depths, analysed with exact contexts.
-4. **Analysis.** The same v0.2 engine and budget as in simulation, with the
-   family declared up front (`ErrorBudget(n_qubits=5, n_metrics=…)`).
+### Phase A — read-only observation, 30 days
+
+Collect existing vendor calibration records or authorized snapshots without
+submitting jobs or using QPU time. The initial design is hourly
+`HardwareSession.snapshot()` on up to 5 selected qubits (subject to
+actual provider access and availability). Capture OBSERVED T1, T2, readout
+P(1|0), P(0|1), and two-qubit error with each property's calibration
+timestamp. Snapshots are read-only but may repeat stale vendor estimates;
+**hourly polling does not imply hourly recalibration or independent
+measurements**. Approved historical exports may be used instead of direct
+account access.
+
+Before inspecting outcomes, agree on a prospective analysis plan specifying
+the monitored family and contexts, data exclusions, time windows, baseline
+and alert rules, missing-data handling, independent-replication procedure,
+and which outputs may be shared. Keep any tuning data separate from
+held-out evaluation; record changes to the plan rather than retroactively
+calling them preregistered. No such real-hardware plan or pilot results
+are claimed here.
+
+**Phase A can test:** ingestion/provenance integrity, missingness,
+timestamp accuracy, alert consistency across repeated snapshots, and
+agreement with subsequently reported vendor calibration changes.
+It cannot independently validate the accuracy of error estimates or infer
+unobserved between-calibration drift. A lack of changes in stale vendor
+records is not proof of qubit stability.
+
+### Phase B — optional, separately authorized active characterization
+
+Only if collaborators and device operators separately approve experiments,
+review access rights and costs, and explicitly authorize each submission:
+
+1. **Measured T1/T2:** `plan_characterization(backend, "t1" |
+   "t2_echo", qubits, delays, shots=1000)` with 15 delays up to
+   3·T1(vendor). Example: 5 qubits × 2 sequences × 15 circuits × 1000
+   shots = 150,000 shots **per session**, before provider-specific limits,
+   queue times or additional controls. The dry-run plan must first be
+   inspected for estimated QPU time and cost.
+2. **Inferred probes:** `plan_characterization(..., "probe")` and optional
+   mirror circuits of 2–3 depths, using exact contexts and a fixed probe
+   workload so that workload changes are not confused with device changes.
+3. **Independent reference:** if possible, collect dense characterization
+   on the same qubits, with a defined reference measurement and analysis
+   window that do not reuse the monitor's own estimate as truth.
+4. **Evaluation:** declare the monitoring family before analysis
+   (`ErrorBudget(n_qubits=5, n_metrics=…)` is an example, not a validated
+   real-hardware setting); evaluate session-level false alerts, timely
+   detection, false confidence in accepted T1/T2 fits, forecast coverage,
+   abstention, workload robustness, and uncertainty intervals against
+   blinded/independent reference where available. Publish negative and
+   inconclusive outcomes subject to data permissions.
+
+These active experiments are **not read-only** and are **not included**
+in the 30-day observation-only invitation. `qnp.hardware` defaults to
+refusing submissions and requires explicit authorization and budget gates.
 
 ## What vendor calibration values are, and are not
 
