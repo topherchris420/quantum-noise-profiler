@@ -5,13 +5,26 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 import pytest
 
-from qnp import AlertLevel, DriftConfig, ErrorBudget, Estimate, ForecastStatus, Metric, Profiler, Provenance, Status
+from qnp import (
+    V02_THRESHOLDS,
+    AlertLevel,
+    DriftConfig,
+    ErrorBudget,
+    Estimate,
+    ForecastStatus,
+    Metric,
+    Profiler,
+    Provenance,
+    Status,
+)
 from qnp.drift import analyze_series
 from qnp.inferred import FlipTally, flip_estimates
+from qnp.measured import estimate_readout
 
 T0 = datetime(2026, 10, 1, tzinfo=timezone.utc)
 CTX0 = "ideal=0|1q<=0|2q<=0"
 CTX1 = "ideal=1|1q<=0|2q<=0"
+P10 = "p(1|0)"
 
 
 def flip_series(rates, shots=4000, seed=0, step=timedelta(minutes=10), ctx=CTX0, qubit=0):
@@ -21,6 +34,15 @@ def flip_series(rates, shots=4000, seed=0, step=timedelta(minutes=10), ctx=CTX0,
         k = int(rng.binomial(shots, p))
         out += flip_estimates({(qubit, ctx): FlipTally(k, shots)}, {}, T0 + i * step, "test")
     return out
+
+
+def readout_series(rates, shots=4000, seed=0, step=timedelta(minutes=10), prepared=0, qubit=0):
+    """MEASURED readout_error from readout probes: the series v0.3 thresholds apply to."""
+    rng = np.random.default_rng(seed)
+    return [
+        estimate_readout(qubit, prepared, int(rng.binomial(shots, p)), shots, T0 + i * step)
+        for i, p in enumerate(rates)
+    ]
 
 
 def kinds(alerts):
@@ -60,7 +82,7 @@ def test_effect_size_gate_blocks_trivial_changes():
 
 
 def test_threshold_breach_is_critical_and_exact():
-    es = flip_series([0.02] * 6 + [0.09] * 6, seed=4)
+    es = readout_series([0.02] * 6 + [0.09] * 6, seed=4)
     alerts = analyze_series(es, DriftConfig())
     thr = [a for a in alerts if a.kind == "threshold"]
     assert thr and thr[0].level is AlertLevel.CRITICAL and thr[0].details["guarantee"] == "exact"
@@ -70,17 +92,32 @@ def test_just_below_threshold_does_not_trip_threshold_channel():
     cfg = DriftConfig()
     fired = 0
     for s in range(20):
-        es = flip_series([0.045] * 48, seed=100 + s)
+        es = readout_series([0.045] * 48, seed=100 + s)
         states: dict = {}
         if any(a.kind == "threshold" for n in range(1, 49) for a in analyze_series(es[:n], cfg, states=states)):
             fired += 1
     assert fired <= 2
 
 
+def test_workload_dependent_rates_get_no_absolute_threshold_by_default():
+    """v0.2 Experiment E5/E6: a workload whose effective flip rate is above 5%
+    on unchanged hardware raised CRITICAL alerts. v0.3 monitors such rates for
+    relative change only, says why, and reproduces v0.2 on request."""
+    es = flip_series([0.09] * 12, seed=4)
+    prof = Profiler()
+    prof.add(es)
+    (rep,) = prof.reports()
+    assert rep.threshold["threshold"] is None and "workload" in rep.threshold["note"]
+    assert not rep.alerts
+    v02 = analyze_series(es, DriftConfig(thresholds=dict(V02_THRESHOLDS)))
+    assert [a.kind for a in v02 if a.level is AlertLevel.CRITICAL] == ["threshold"]
+    assert V02_THRESHOLDS == {Metric.EFFECTIVE_FLIP: 0.05, Metric.READOUT_ERROR: 0.05}
+
+
 def test_forecast_on_ramp_has_predictive_interval_and_statuses():
     rates = np.linspace(0.02, 0.045, 30)
     prof = Profiler(config=DriftConfig(budget=ErrorBudget(n_qubits=1, n_metrics=1)))
-    prof.add(flip_series(rates, shots=20_000, seed=5))
+    prof.add(readout_series(rates, shots=20_000, seed=5))
     alerts = prof.check()
     fc = [a for a in alerts if a.kind == "forecast"]
     assert fc, [a.message for a in alerts]
@@ -94,7 +131,8 @@ def test_forecast_on_ramp_has_predictive_interval_and_statuses():
     assert abs(d["hours_to_threshold_median"] - truth_h) < 0.25
     assert 0 < d["hours_to_threshold_p90"] - d["hours_to_threshold_p10"] < 1.0
     (rep,) = prof.report()
-    assert rep["forecast"]["per_context"][CTX0]["status"] == ForecastStatus.VALID_FORECAST.value
+    assert rep["forecast"]["per_context"][P10]["status"] == ForecastStatus.VALID_FORECAST.value
+    assert rep["provenance"] == "measured" and rep["metric"] == "readout_error"
 
 
 def test_rejected_forecasts_carry_machine_readable_reasons():
@@ -231,7 +269,7 @@ def test_each_provenance_counts_in_the_family_budget():
 def test_zero_share_disables_a_channel_instead_of_crashing():
     cfg = DriftConfig(budget=ErrorBudget(shares={"drift": 0.75, "threshold": 0.25, "forecast": 0.0}))
     prof = Profiler(config=cfg)
-    prof.add(flip_series(np.linspace(0.02, 0.045, 30), shots=20_000, seed=5))
+    prof.add(readout_series(np.linspace(0.02, 0.045, 30), shots=20_000, seed=5))
     (rep,) = prof.reports()
     assert rep.alpha["forecast"] == 0 and rep.forecast["log_e_threshold"] == float("inf")
     assert not [a for a in rep.alerts if a.kind == "forecast"]

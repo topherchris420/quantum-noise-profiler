@@ -18,10 +18,16 @@ class Profiler:
 
     >>> prof = Profiler()
     >>> prof.observe_qiskit_backend(backend)            # OBSERVED
-    >>> prof.ingest_qiskit(isa_circuits, job.result())  # INFERRED
+    >>> prof.ingest_qiskit(isa_circuits, job.result())  # INFERRED (+ MEASURED readout probes)
     >>> prof.add(qnp.measured.run_t1(backend, 0, delays))  # MEASURED
     >>> alerts = prof.check()
     >>> reports = prof.report()   # per-group e-values, gates and forecast statuses
+
+    Readout probes (``qnp.measured.readout_probe_circuits``) in a job become
+    MEASURED ``readout_error`` series, which carry the absolute recalibration
+    threshold; workload circuits become INFERRED effective flip rates with
+    exact contexts, monitored for relative change only (v0.3 defaults; see
+    ``qnp.drift.WORKLOAD_DEPENDENT``).
 
     The monitoring family (number of qubits and metrics) is frozen at the
     first ``check()`` unless declared in ``config.budget``; if it later grows,
@@ -57,15 +63,19 @@ class Profiler:
     # -- adapters -------------------------------------------------------------
     def ingest_qiskit(self, circuits, results, timestamp: datetime | None = None, **kw: Any) -> list[Estimate]:
         """``results``: a SamplerV2 ``PrimitiveResult`` (iterates pub results)
-        or a list of counts dicts, one per circuit."""
-        from .adapters.qiskit_adapter import infer_from_results
+        or a list of counts dicts, one per circuit. Keyword arguments go to
+        ``qiskit_adapter.estimates_from_results`` (``context_mode="exact"``
+        and ``readout_probes="auto"`` by default; ``context_mode="bucket",
+        readout_probes="off"`` is the v0.2 behaviour)."""
+        from .adapters.qiskit_adapter import estimates_from_results
 
-        return self.add(infer_from_results(circuits, results, timestamp, **kw))
+        return self.add(estimates_from_results(circuits, results, timestamp, **kw))
 
     def ingest_cirq(self, circuits, results, timestamp: datetime | None = None, **kw: Any) -> list[Estimate]:
-        from .adapters.cirq_adapter import infer_from_results
+        """As ``ingest_qiskit``, for ``cirq.Result`` objects."""
+        from .adapters.cirq_adapter import estimates_from_results
 
-        return self.add(infer_from_results(circuits, results, timestamp, **kw))
+        return self.add(estimates_from_results(circuits, results, timestamp, **kw))
 
     def observe_qiskit_backend(self, backend) -> list[Estimate]:
         from .adapters.qiskit_adapter import observe_backend

@@ -3,7 +3,7 @@ OBSERVED calibration from a BackendV2 Target or IBM BackendProperties."""
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from datetime import datetime
 from typing import Any
 
@@ -155,6 +155,35 @@ def _ones_by_position(counts: Mapping[str, int]) -> tuple[int, dict[int, int]]:
     return shots, ones
 
 
+def _bit_lookup(
+    circuit, res, measured: Mapping[int, tuple[str, int, int]]
+) -> Callable[[str, int, int], tuple[int, int] | None]:
+    """``(register, index in register, global clbit) -> (shots, ones)`` for one
+    circuit's result, or None when the result has no usable data for that bit.
+
+    ``res`` is a SamplerV2 pub result (``.data`` with per-register BitArrays)
+    or a counts dict as returned by ``Result.get_counts(i)``."""
+    if hasattr(res, "data"):  # SamplerV2 pub result
+        per_reg: dict[str, tuple[int, dict[int, int]] | None] = {}
+        for name in {reg for reg, _, _ in measured.values()}:
+            bitarray = getattr(res.data, name, None)
+            if bitarray is None or bitarray.shape != ():
+                per_reg[name] = None
+            else:
+                per_reg[name] = _ones_by_position(bitarray.get_counts())
+        return lambda reg, idx, gidx: (
+            None if (reg_tally := per_reg.get(reg)) is None else (reg_tally[0], reg_tally[1].get(idx, 0))
+        )
+    shots, ones = _ones_by_position(res)
+    width = len(next(iter(res)).replace(" ", ""))
+    if width != circuit.num_clbits:
+        raise ValueError(
+            f"counts have {width} bits but the circuit has {circuit.num_clbits} classical bits: "
+            "results do not belong to this circuit"
+        )
+    return lambda reg, idx, gidx: (shots, ones.get(gidx, 0))
+
+
 def infer_from_results(
     circuits: Iterable[Any],
     results: Iterable[Any],
@@ -166,37 +195,20 @@ def infer_from_results(
 ) -> list[Estimate]:
     """INFERRED effective-flip estimates from one batch (e.g. one job).
 
-    ``results`` items may be SamplerV2 pub results (``.data`` with per-register
-    BitArrays) or plain counts dicts as returned by ``Result.get_counts(i)``.
-    Circuits must be the ones actually executed (post-transpilation, physical
-    qubit indices), otherwise qubit labels are logical, not physical.
+    Every circuit is treated as workload (v0.2 behaviour); see
+    ``estimates_from_results`` for the v0.3 entry point that separates
+    readout probes. ``results`` items may be SamplerV2 pub results (``.data``
+    with per-register BitArrays) or plain counts dicts as returned by
+    ``Result.get_counts(i)``. Circuits must be the ones actually executed
+    (post-transpilation, physical qubit indices), otherwise qubit labels are
+    logical, not physical.
     """
     timestamp = timestamp or utcnow()
     tallies: dict[tuple[int, str], FlipTally] = {}
     unidentified: dict[int, str] = {}
     for circuit, res in zip(circuits, results, strict=True):
         an = analyze_circuit(circuit, max_sim_qubits, context_mode)
-        if hasattr(res, "data"):  # SamplerV2 pub result
-            per_reg: dict[str, tuple[int, dict[int, int]] | None] = {}
-            for name in {reg for reg, _, _ in an.measured.values()}:
-                bitarray = getattr(res.data, name, None)
-                if bitarray is None or bitarray.shape != ():
-                    per_reg[name] = None
-                else:
-                    per_reg[name] = _ones_by_position(bitarray.get_counts())
-            lookup = lambda reg, idx, gidx: (
-                None if (reg_tally := per_reg.get(reg)) is None else (reg_tally[0], reg_tally[1].get(idx, 0))
-            )
-        else:
-            shots, ones = _ones_by_position(res)
-            width = len(next(iter(res)).replace(" ", ""))
-            if width != circuit.num_clbits:
-                raise ValueError(
-                    f"counts have {width} bits but the circuit has {circuit.num_clbits} classical bits: "
-                    "results do not belong to this circuit"
-                )
-            lookup = lambda reg, idx, gidx: (shots, ones.get(gidx, 0))
-
+        lookup = _bit_lookup(circuit, res, an.measured)
         for q, (reg, idx, gidx) in an.measured.items():
             ideal = an.ideal[q]
             if ideal.bit is None:
@@ -208,6 +220,117 @@ def infer_from_results(
                 continue
             tally_marginal(tallies, q, ideal, *got)
     return flip_estimates(tallies, unidentified, timestamp, source, min_shots)
+
+
+# --------------------------------------------------------------------------- readout probes
+
+_PROBE_OPS = ("x", "measure", "barrier")
+
+
+def readout_probe_preparations(circuit) -> dict[int, tuple[int, tuple[str, int, int]]] | None:
+    """If ``circuit`` is a readout probe, ``{qubit: (prepared bit, (register,
+    index in register, global clbit))}`` for every measured qubit; else None.
+
+    A readout probe consists only of X gates, barriers and terminal
+    measurements, with at most one X per qubit and each measured qubit read
+    into its own classical bit, so each measured qubit is prepared in a
+    definite basis state and read out immediately. Anything else (another
+    gate, a delay, a reset, control flow, parameters, an operation after a
+    measurement) makes the circuit workload. ``qnp.measured.
+    readout_probe_circuits`` and the ``probe`` plans of ``qnp.hardware``
+    build such circuits."""
+    if circuit.parameters:
+        return None
+    prepared: dict[int, int] = {}
+    measured: dict[int, tuple[str, int, int]] = {}
+    clbits: set[int] = set()
+    for inst in circuit.data:
+        name = inst.operation.name
+        if name not in _PROBE_OPS:
+            return None
+        if name == "barrier":
+            continue
+        (q,) = (circuit.find_bit(x).index for x in inst.qubits)
+        if q in measured:
+            return None  # operation after the measurement
+        if name == "x":
+            if prepared.get(q):
+                return None  # two X gates: not a preparation
+            prepared[q] = 1
+            continue
+        loc = circuit.find_bit(inst.clbits[0])
+        if loc.index in clbits:
+            return None  # two qubits read into one classical bit
+        clbits.add(loc.index)
+        reg, idx = (loc.registers[0][0].name, loc.registers[0][1]) if loc.registers else ("", loc.index)
+        measured[q] = (reg, idx, loc.index)
+    if not measured:
+        return None
+    return {q: (prepared.get(q, 0), m) for q, m in measured.items()}
+
+
+def estimates_from_results(
+    circuits: Iterable[Any],
+    results: Iterable[Any],
+    timestamp: datetime | None = None,
+    source: str = "qiskit",
+    min_shots: int = 200,
+    max_sim_qubits: int = 16,
+    context_mode: str = "exact",
+    readout_probes: str = "auto",
+) -> list[Estimate]:
+    """Estimates from one batch (e.g. one job): MEASURED ``readout_error`` from
+    the readout probes it contains and INFERRED effective flip rates from the
+    rest (``infer_from_results``).
+
+    ``readout_probes="auto"`` recognises probes by their structure
+    (``readout_probe_preparations``) and pools their counts per (qubit,
+    prepared bit); ``"off"`` treats every circuit as workload (v0.2).
+    Contexts default to ``exact``: bucketed contexts pool circuits whose noise
+    differs, which v0.2 Experiment E showed raises false alerts when the
+    workload changes."""
+    from ..measured import READOUT_CONTEXTS, estimate_readout
+
+    if readout_probes not in ("auto", "off"):
+        raise ValueError(f"readout_probes must be 'auto' or 'off', got {readout_probes!r}")
+    timestamp = timestamp or utcnow()
+    work_c, work_r = [], []
+    tallies: dict[tuple[int, int], list[int]] = {}
+    missing: dict[tuple[int, int], str] = {}
+    for circuit, res in zip(circuits, results, strict=True):
+        preps = readout_probe_preparations(circuit) if readout_probes == "auto" else None
+        if preps is None:
+            work_c.append(circuit)
+            work_r.append(res)
+            continue
+        lookup = _bit_lookup(circuit, res, {q: m for q, (_, m) in preps.items()})
+        for q, (bit, (reg, idx, gidx)) in preps.items():
+            got = lookup(reg, idx, gidx)
+            if got is None:
+                missing.setdefault((q, bit), "result for register missing or parameter-swept")
+                continue
+            shots, ones = got
+            t = tallies.setdefault((q, bit), [0, 0])
+            t[0] += ones if bit == 0 else shots - ones
+            t[1] += shots
+    out = infer_from_results(work_c, work_r, timestamp, source, min_shots, max_sim_qubits, context_mode)
+    probe_source = f"{source}:readout-probe"
+    for (q, bit), (k, n) in sorted(tallies.items()):
+        out.append(estimate_readout(q, bit, k, n, timestamp, probe_source, min_shots))
+    for (q, bit), reason in sorted(missing.items()):
+        if (q, bit) not in tallies:
+            out.append(
+                insufficient(
+                    Metric.READOUT_ERROR,
+                    (q,),
+                    Provenance.MEASURED,
+                    reason,
+                    timestamp,
+                    context=READOUT_CONTEXTS[bit],
+                    source=probe_source,
+                )
+            )
+    return out
 
 
 # --------------------------------------------------------------------------- OBSERVED

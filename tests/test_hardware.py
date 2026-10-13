@@ -56,8 +56,14 @@ def test_dry_run_is_default_and_sends_nothing(backend):
     rec = s.submit(plan)
     assert rec["status"] == "dry_run" and rec["budget_ok"] is False  # zero default budget
     assert "job_id" not in rec and s._jobs == 0
-    assert plan.n_circuits == 8 and plan.total_shots == 1600 and plan.estimated_qpu_seconds > 0
+    # 8 delays in random order + 5 interleaved ground references
+    assert plan.n_circuits == 13 and plan.total_shots == 2600 and plan.estimated_qpu_seconds > 0
     assert all(c.metadata["physical_qubit"] == 0 for c in plan.circuits)
+    assert plan.sweep is not None and plan.sweep.randomized and plan.summary()["sweep"]["n_references"] == 5
+    v02 = plan_characterization(
+        backend, "t1", [0], np.linspace(0, 400e-6, 8), shots=200, n_references=0, randomize=False
+    )
+    assert v02.n_circuits == 8 and any("cannot be detected" in n for n in v02.notes)
 
 
 def test_submission_needs_permission_authorization_and_budget(backend):
@@ -116,3 +122,23 @@ def test_plan_validation(backend):
         backend_snapshot(backend, [0.0])
     probe = plan_characterization(backend, "probe", [np.int64(3), 4], shots=100)
     assert probe.n_circuits == 4
+
+
+def test_sweep_delays_are_rounded_to_the_backend_grid():
+    """IBM backends reject delays off their timing grid; the fit must use the
+    delays that run."""
+    from qiskit_ibm_runtime.fake_provider import FakeManilaV2
+
+    from qnp.hardware import delay_grid_seconds
+
+    b = FakeManilaV2()
+    grid = delay_grid_seconds(b)
+    assert grid == pytest.approx(16 * b.target.dt)
+    plan = plan_characterization(b, "t1", [0], np.linspace(0, 300e-6, 15), shots=100, seed=1)
+    steps = np.asarray(plan.sweep.delays_s) / grid
+    assert np.allclose(steps, np.round(steps)) and any("delay grid" in n for n in plan.notes)
+    echo = plan_characterization(b, "t2_echo", [0], np.linspace(0, 300e-6, 15), shots=100, seed=1)
+    halves = np.asarray(echo.sweep.delays_s) / (2 * grid)
+    assert np.allclose(halves, np.round(halves))
+    with pytest.raises(ValueError, match="delay grid"):
+        plan_characterization(b, "t1", [0], [0, 1e-10, 2e-10, 3e-10], shots=100)

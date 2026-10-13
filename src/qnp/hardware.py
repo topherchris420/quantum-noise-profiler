@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import platform
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from importlib import metadata
@@ -35,6 +35,7 @@ from typing import Any
 
 import numpy as np
 
+from .measured import DecaySweepPlan
 from .models import Estimate, Metric, Provenance, insufficient
 
 __all__ = [
@@ -43,7 +44,11 @@ __all__ = [
     "HardwareSession",
     "JobBudget",
     "SubmissionRefused",
+    "align_delays",
     "backend_snapshot",
+    "delay_grid_seconds",
+    "estimates_from_sweep_job",
+    "estimates_from_t1_job",
     "observe_ibm_backend",
     "plan_characterization",
     "software_versions",
@@ -245,6 +250,18 @@ class CharacterizationPlan:
     circuits: list[Any] = field(repr=False)
     estimated_qpu_seconds: float = 0.0
     notes: list[str] = field(default_factory=list)
+    # acquisition plan of each qubit's t1 / t2_echo sweep (random delay order,
+    # ground references); the circuits follow them, qubit after qubit
+    sweeps: dict[int, DecaySweepPlan] | None = None
+    parallel: bool = False  # probes: all qubits in the same two circuits
+
+    @property
+    def sweep(self) -> DecaySweepPlan | None:
+        """The sweep plan shared by every qubit (None if they differ or for probes)."""
+        if not self.sweeps:
+            return None
+        plans = list(self.sweeps.values())
+        return plans[0] if all(p == plans[0] for p in plans) else None
 
     @property
     def n_circuits(self) -> int:
@@ -255,8 +272,10 @@ class CharacterizationPlan:
         return self.n_circuits * self.shots
 
     def summary(self) -> dict[str, Any]:
-        d = {k: v for k, v in asdict(self).items() if k != "circuits"}
+        d = {k: v for k, v in asdict(self).items() if k not in ("circuits", "sweeps")}
         d.update(n_circuits=self.n_circuits, total_shots=self.total_shots)
+        d["sweep"] = None if self.sweep is None else self.sweep.to_dict()
+        d["sweeps"] = None if not self.sweeps else {str(q): p.to_dict() for q, p in self.sweeps.items()}
         return d
 
 
@@ -283,6 +302,35 @@ def _estimate_seconds(backend, circuits, shots: int) -> float:
     return float(sum(per_circ) * shots + 5.0)
 
 
+def delay_grid_seconds(backend) -> float | None:
+    """Smallest delay step the backend accepts: dt times the least common
+    multiple of its granularity and pulse/acquire alignment (IBM backends
+    reject delays off this grid). None if the backend reports no dt."""
+    import math
+
+    target = getattr(backend, "target", None)
+    dt = getattr(target, "dt", None) or getattr(backend, "dt", None)
+    if not dt:
+        return None
+    try:
+        tc = target.timing_constraints()  # type: ignore[union-attr]
+        step = math.lcm(int(tc.granularity), int(tc.pulse_alignment), int(tc.acquire_alignment))
+    except Exception:
+        step = 1
+    return float(dt) * step
+
+
+def align_delays(backend, delays_s: Sequence[float], parts: int = 1) -> list[float]:
+    """Round each delay to the backend's delay grid (``parts`` equal pieces
+    each on the grid, e.g. 2 for the two halves of a Hahn echo), so that the
+    delays the device executes are the ones the fit uses."""
+    grid = delay_grid_seconds(backend)
+    if grid is None:
+        return [float(d) for d in delays_s]
+    step = grid * parts
+    return [float(round(float(d) / step) * step) for d in delays_s]
+
+
 def _physical_index(q) -> int:
     """A physical qubit index exactly as given: a non-boolean integer. Floats,
     strings and booleans are rejected rather than coerced, so a job can never
@@ -293,30 +341,66 @@ def _physical_index(q) -> int:
 
 
 def plan_characterization(
-    backend, kind: str, physical_qubits: Sequence[int], delays_s: Sequence[float] = (), shots: int = 1000
+    backend,
+    kind: str,
+    physical_qubits: Sequence[int],
+    delays_s: Sequence[float] | Mapping[int, Sequence[float]] = (),
+    shots: int = 1000,
+    *,
+    n_references: int = 5,
+    randomize: bool = True,
+    seed: int | None = None,
+    parallel: bool = False,
 ) -> CharacterizationPlan:
     """Build (but do not run) ISA circuits for T1, Hahn-echo T2 or basis-state
-    probes on explicit physical qubits."""
+    probes on explicit physical qubits.
+
+    Sweeps follow ``qnp.measured.decay_sweep_plan(delays, n_references,
+    randomize, seed)``: delays in random order with interleaved ground
+    references, so that readout drift during the sweep is detectable
+    (``n_references=0, randomize=False`` is the v0.2 design). ``delays_s``
+    may map each physical qubit to its own delays (e.g. scaled to its vendor
+    T1). ``parallel=True`` (probes only) prepares and reads every qubit in
+    the same two circuits (``qnp.measured.readout_probe_circuits``)."""
     from qiskit import QuantumCircuit, transpile
 
-    from .measured import t1_circuits, t2_echo_circuits
+    from .measured import decay_plan_circuits, decay_sweep_plan, readout_probe_circuits
 
     if kind not in ("t1", "t2_echo", "probe"):
         raise ValueError("kind must be 't1', 't2_echo' or 'probe'")
     if shots <= 0 or not isinstance(shots, int):
         raise ValueError("shots must be a positive int")
+    if parallel and kind != "probe":
+        raise ValueError("parallel=True is only supported for probes")
     n = backend.num_qubits
     qs = [_physical_index(q) for q in physical_qubits]
     if len(set(qs)) != len(qs) or any(not 0 <= q < n for q in qs):
         raise ValueError(f"invalid physical qubits {physical_qubits} for a {n}-qubit backend")
-    if kind != "probe" and (len(delays_s) < 3 or any(d < 0 for d in delays_s)):
+    per_qubit = isinstance(delays_s, Mapping)
+    if isinstance(delays_s, Mapping):
+        if set(delays_s) != set(qs):
+            raise ValueError("per-qubit delays must be given for exactly the planned qubits")
+        delays_of = {q: [float(x) for x in delays_s[q]] for q in qs}
+    else:
+        delays_of = {q: [float(x) for x in delays_s] for q in qs}
+    if kind != "probe" and any(len(d) < 3 or any(x < 0 for x in d) for d in delays_of.values()):
         raise ValueError("decay characterization needs >= 3 non-negative delays")
+    grid = delay_grid_seconds(backend)
+    if kind != "probe":
+        delays_of = {q: align_delays(backend, d, 2 if kind == "t2_echo" else 1) for q, d in delays_of.items()}
+        if any(len(set(d)) < 3 for d in delays_of.values()):
+            raise ValueError("fewer than 3 distinct delays remain on the backend's delay grid")
+    sweeps = None if kind == "probe" else {q: decay_sweep_plan(delays_of[q], n_references, randomize, seed) for q in qs}
     circuits = []
-    for q in qs:
-        if kind == "t1":
-            logical = t1_circuits(delays_s)
-        elif kind == "t2_echo":
-            logical = t2_echo_circuits(delays_s)
+    if parallel:
+        circuits = transpile(
+            readout_probe_circuits(qs, num_qubits=n), backend, initial_layout=list(range(n)), optimization_level=0
+        )
+        for c in circuits:
+            c.metadata = {**(c.metadata or {}), "physical_qubits": qs}
+    for q in [] if parallel else qs:
+        if sweeps is not None:
+            logical = decay_plan_circuits(sweeps[q], kind)
         else:
             z = QuantumCircuit(1, 1, metadata={"qnp": "probe", "prep": 0})
             z.measure(0, 0)
@@ -329,9 +413,14 @@ def plan_characterization(
             c.metadata = {**(c.metadata or {}), "physical_qubit": q}
         circuits += isa
     notes = []
+    if kind != "probe" and grid is not None:
+        notes.append(f"delays rounded to the backend's delay grid ({grid:.4g} s); the fit uses the rounded delays")
     if kind == "t2_echo":
         notes.append("Hahn echo T2 is not T2* (Ramsey); IBM's reported T2 is Hahn echo")
-    plan = CharacterizationPlan(kind, backend.name, qs, [float(d) for d in delays_s], shots, circuits, 0.0, notes)
+    if sweeps is not None and not all(p.randomized for p in sweeps.values()):
+        notes.append("delays acquired in delay order: measurement drift during the sweep cannot be detected")
+    common = [] if per_qubit or not qs else delays_of[qs[0]]
+    plan = CharacterizationPlan(kind, backend.name, qs, common, shots, circuits, 0.0, notes, sweeps, parallel)
     plan.estimated_qpu_seconds = _estimate_seconds(backend, circuits, shots)
     return plan
 
@@ -441,22 +530,32 @@ def execution_timestamps(job) -> dict[str, bool | str | None]:
     }
 
 
-def estimates_from_t1_job(plan: CharacterizationPlan, result, timestamp: datetime) -> list[Estimate]:
-    """MEASURED T1 per physical qubit from a SamplerV2 result of a t1 plan."""
-    from .measured import estimate_t1
+def _ones(pub) -> int:
+    bits = next(iter(pub.data.values())) if hasattr(pub.data, "values") else pub.data.c
+    return sum(v for k, v in bits.get_counts().items() if k.endswith("1"))
 
-    if plan.kind != "t1":
-        raise ValueError("plan is not a T1 plan")
+
+def estimates_from_sweep_job(plan: CharacterizationPlan, result, timestamp: datetime) -> list[Estimate]:
+    """MEASURED T1 or Hahn-echo T2 per physical qubit from a SamplerV2 result
+    of a ``t1`` or ``t2_echo`` plan, with the drift checks of its sweep plan."""
+    from .measured import estimate_t1_from_plan, estimate_t2_echo_from_plan
+
+    if plan.kind not in ("t1", "t2_echo") or not plan.sweeps:
+        raise ValueError("plan is not a decay-sweep plan")
     if timestamp.tzinfo is None:
         raise ValueError("timestamp must be timezone-aware")
-    n_d = len(plan.delays_s)
-    out = []
-    for i, q in enumerate(plan.physical_qubits):
-        ones = []
-        for j in range(n_d):
-            pub = result[i * n_d + j]
-            bits = next(iter(pub.data.values())) if hasattr(pub.data, "values") else pub.data.c
-            counts = bits.get_counts()
-            ones.append(sum(v for k, v in counts.items() if k.endswith("1")))
-        out.append(estimate_t1(q, plan.delays_s, ones, plan.shots, timestamp, source=f"qnp-t1@{plan.backend_name}"))
+    fn = estimate_t1_from_plan if plan.kind == "t1" else estimate_t2_echo_from_plan
+    out, offset = [], 0
+    for q in plan.physical_qubits:
+        sw = plan.sweeps[q]
+        ones = [_ones(result[offset + j]) for j in range(len(sw.slots))]
+        offset += len(sw.slots)
+        out.append(fn(q, sw, ones, plan.shots, timestamp, source=f"qnp-{plan.kind}@{plan.backend_name}"))
     return out
+
+
+def estimates_from_t1_job(plan: CharacterizationPlan, result, timestamp: datetime) -> list[Estimate]:
+    """MEASURED T1 per physical qubit from a SamplerV2 result of a t1 plan."""
+    if plan.kind != "t1":
+        raise ValueError("plan is not a T1 plan")
+    return estimates_from_sweep_job(plan, result, timestamp)

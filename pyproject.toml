@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quantum-noise-profiler"
-version = "0.2.0.dev0"
+version = "0.3.0.dev0"
 description = "Provenance-aware qubit noise tracking and drift detection for Qiskit and Cirq"
 readme = "README.md"
 license = { text = "MIT" }

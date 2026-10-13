@@ -1,6 +1,6 @@
 """Quantum Noise Profiler: provenance-aware qubit noise tracking and drift detection."""
 
-from .drift import DriftConfig, ErrorBudget
+from .drift import V02_THRESHOLDS, DriftConfig, ErrorBudget
 from .forecast import ForecastConfig
 from .legacy.v01_drift import LegacyDriftConfig
 from .models import Alert, AlertLevel, Estimate, ForecastStatus, Metric, Provenance, Reason, Status
@@ -8,6 +8,7 @@ from .profiler import Profiler
 from .store import EstimateStore
 
 __all__ = [
+    "V02_THRESHOLDS",
     "Alert",
     "AlertLevel",
     "DriftConfig",
@@ -23,4 +24,4 @@ __all__ = [
     "Reason",
     "Status",
 ]
-__version__ = "0.2.0.dev0"
+__version__ = "0.3.0.dev0"

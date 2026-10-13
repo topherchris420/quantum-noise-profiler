@@ -64,6 +64,32 @@ class FitDiagnosticsConfig:
     n_ppc_draws: int = 200
     outlier_fraction: float = 0.0  # > 0: contaminated likelihood (opt-in robust fit)
     rng_seed: int = 0
+    # Drift during acquisition (v0.3). Used only when the sweep's acquisition
+    # order and/or interleaved reference circuits are supplied to the fit.
+    reference_alpha: float = 0.01  # homogeneity of repeated reference circuits (G-test)
+    # Runs test on residual signs in acquisition order: always reported in the
+    # diagnostics; a rejection rule only if > 0. Off by default: in development
+    # it added false rejections of valid fits without adding drift detection
+    # beyond the references (experiments/v03/DEVELOPMENT_NOTES.md).
+    acquisition_runs_alpha: float = 0.0
+
+
+@dataclass(frozen=True)
+class SweepReferences:
+    """Repeated reference circuits interleaved in a decay sweep, e.g. ground
+    references (prepare |0>, measure) whose outcome probability does not
+    depend on the decay at all. ``successes`` count the same outcome as the
+    sweep (e.g. ones); ``positions`` are acquisition positions."""
+
+    positions: tuple[int, ...]
+    successes: tuple[int, ...]
+    shots: tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        if not (len(self.positions) == len(self.successes) == len(self.shots)):
+            raise ValueError("references need equally many positions, successes and shots")
+        if any(n <= 0 or k < 0 or k > n for k, n in zip(self.successes, self.shots)):
+            raise ValueError("reference counts must satisfy 0 <= successes <= shots, shots > 0")
 
 
 @dataclass(frozen=True)
@@ -106,6 +132,66 @@ def _runs_pvalue(signs: np.ndarray) -> float:
     from .forecast import runs_test_pvalue
 
     return runs_test_pvalue(signs)
+
+
+def reference_homogeneity(successes, shots) -> tuple[float, float, int]:
+    """Likelihood-ratio (G) test that repeated reference circuits share one
+    outcome probability: returns (statistic, p-value, dof). A significant
+    result means the measurement drifted while the sweep was acquired."""
+    k = np.asarray(successes, float)
+    n = np.asarray(shots, float)
+    dof = int(k.size - 1)
+    if dof < 1:
+        return 0.0, 1.0, 0
+    p = float(k.sum() / n.sum())
+    stat = _deviance(k, n, np.full(k.size, p)) if 0 < p < 1 else 0.0
+    return stat, float(sps.chi2.sf(stat, dof)), dof
+
+
+def _acquisition_diagnostics(
+    cfg: FitDiagnosticsConfig,
+    delays: np.ndarray,
+    positions: np.ndarray | None,
+    references: SweepReferences | None,
+    diag: dict[str, Any],
+) -> list[Reason]:
+    """Checks for measurement drift during acquisition that do not need the
+    fit: homogeneity of interleaved reference circuits. Records whether the
+    acquisition order confounds slow drift with the decay."""
+    reasons: list[Reason] = []
+    if positions is None:
+        diag["acquisition_order"] = "not supplied"
+    else:
+        by_time = delays[np.argsort(positions, kind="stable")]
+        confounded = bool(np.all(np.diff(by_time) >= 0) or np.all(np.diff(by_time) <= 0))
+        diag["acquisition_order"] = "monotone in delay" if confounded else "not monotone in delay"
+    if positions is None or diag["acquisition_order"] == "monotone in delay":
+        diag["order_note"] = (
+            "delays acquired in delay order (or order unknown): slow measurement drift during the sweep is "
+            "confounded with the decay and cannot be detected by the fit checks"
+        )
+    if references is not None:
+        stat, p, dof = reference_homogeneity(references.successes, references.shots)
+        rates = [k / n for k, n in zip(references.successes, references.shots)]
+        diag["references"] = {
+            "n": len(rates),
+            "positions": [int(x) for x in references.positions],
+            "rates": [float(r) for r in rates],
+            "g_statistic": float(stat),
+            "dof": dof,
+            "p": float(p),
+        }
+        if dof >= 1 and p < cfg.reference_alpha:
+            reasons.append(
+                Reason(
+                    "READOUT_DRIFT",
+                    f"interleaved reference circuits disagree (G={stat:.1f} on {dof} dof, p={p:.2g}): "
+                    "the measurement drifted while the sweep was acquired",
+                    float(p),
+                    cfg.reference_alpha,
+                )
+            )
+    return reasons
 
 
 def _biexponential_log_evidence(
@@ -166,9 +252,20 @@ def fit_exponential_decay(
     level: float = 0.95,
     edge_mass_limit: float = 0.05,
     diagnostics: FitDiagnosticsConfig | bool | None = True,
+    acquisition_positions=None,
+    references: SweepReferences | None = None,
 ) -> DecayFit:
     """Grid posterior for p(t) = A*exp(-t/tau) + B under a binomial likelihood,
     with model checking.
+
+    ``acquisition_positions`` (the order in which the sweep points were
+    acquired) and ``references`` (interleaved reference circuits) enable the
+    checks for measurement drift during the sweep: a runs test on the
+    residuals in acquisition order and a homogeneity test of the references.
+    Both need a design whose acquisition order is not monotone in delay
+    (``qnp.measured.decay_sweep_plan``); with delays acquired in order, a
+    slow drift bends the curve smoothly and is indistinguishable from the
+    decay (v0.2 Experiment D11).
 
     Prior: log-uniform on tau over ``tau_range`` (default: 1/20 of the shortest
     non-zero delay to 20x the longest), uniform on A and B over the given
@@ -200,6 +297,11 @@ def fit_exponential_decay(
     if delays.size < 3 or np.unique(delays).size < 3:
         r = Reason("TOO_FEW_DELAYS", "need at least 3 distinct delays", float(np.unique(delays).size), 3)
         return DecayFit(False, None, None, None, level, r.message, status="insufficient_evidence", reasons=(r,))
+    positions = None
+    if acquisition_positions is not None:
+        positions = np.asarray(acquisition_positions)
+        if positions.shape != delays.shape or np.unique(positions).size != positions.size:
+            raise ValueError("acquisition_positions must give one distinct position per delay")
 
     if tau_range is None:
         positive = delays[delays > 0]
@@ -224,6 +326,7 @@ def fit_exponential_decay(
     edge = max(1, int(0.02 * n_tau))
     edge_mass = float(post[:edge].sum() + post[-edge:].sum())
     diag: dict[str, Any] = {"edge_mass": edge_mass, "tau_prior_range": [float(tau_range[0]), float(tau_range[1])]}
+    drift_reasons = _acquisition_diagnostics(cfg, delays, positions, references, diag) if cfg is not None else []
     if edge_mass > edge_mass_limit:
         r = Reason(
             "TAU_AT_PRIOR_EDGE",
@@ -232,7 +335,9 @@ def fit_exponential_decay(
             edge_mass,
             edge_mass_limit,
         )
-        return DecayFit(False, None, None, None, level, r.message, taus, post, "insufficient_evidence", (r,), diag)
+        rs = (r, *drift_reasons)
+        msg = "; ".join(x.message for x in rs)
+        return DecayFit(False, None, None, None, level, msg, taus, post, "insufficient_evidence", rs, diag)
 
     cdf = np.cumsum(post)
     log_t = np.log(taus)
@@ -283,6 +388,7 @@ def fit_exponential_decay(
             )
         )
     if reasons:
+        reasons += drift_reasons
         return DecayFit(
             False,
             None,
@@ -309,6 +415,10 @@ def fit_exponential_decay(
     runs_p = _runs_pvalue(np.sign(resid[order]))
     diag["pearson_residuals"] = [float(x) for x in resid]
     diag["runs_test_p"] = runs_p
+    acq_runs_p = None
+    if positions is not None and diag["acquisition_order"] == "not monotone in delay":
+        acq_runs_p = _runs_pvalue(np.sign(resid[np.argsort(positions, kind="stable")]))
+        diag["acquisition_runs_test_p"] = acq_runs_p
     outliers = [int(i) for i in np.flatnonzero(np.abs(resid) > cfg.outlier_z)]
     diag["suspected_outliers"] = outliers
     diag["max_abs_residual"] = float(np.max(np.abs(resid)))
@@ -342,6 +452,17 @@ def fit_exponential_decay(
         )
     if runs_p < cfg.runs_alpha:
         reasons.append(Reason("RESIDUAL_RUNS", f"runs test on residual signs p={runs_p:.2g}", runs_p, cfg.runs_alpha))
+    if acq_runs_p is not None and acq_runs_p < cfg.acquisition_runs_alpha:
+        reasons.append(
+            Reason(
+                "ACQUISITION_RUNS",
+                f"runs test on residual signs in acquisition order p={acq_runs_p:.2g}: "
+                "the misfit follows acquisition time, not delay",
+                acq_runs_p,
+                cfg.acquisition_runs_alpha,
+            )
+        )
+    reasons += drift_reasons
 
     # bi-exponential comparison, diagnosis only
     if cfg.compare_biexponential:
