@@ -25,9 +25,7 @@ def test_checkpoint_writes_atomic_private_events(tmp_path):
     }
     path2 = journal.record("job_completed", {"label": "probe0", "counts": [{"c": {"0": 5}}]})
     assert path != path2
-    assert sorted(p.name for p in journal.directory.iterdir()) == [
-        "000_job_submitted.json", "001_job_completed.json"
-    ]
+    assert sorted(p.name for p in journal.directory.iterdir()) == ["000_job_submitted.json", "001_job_completed.json"]
     assert (os.stat(journal.directory).st_mode & 0o077) == 0 if os.name == "posix" else True
 
 
@@ -41,8 +39,12 @@ def test_submission_id_is_saved_even_if_result_raises(tmp_path):
     class Session:
         def submit(self, plan, authorize=False):
             assert authorize
-            return {"status": "submitted", "job": FailedJob(), "job_id": "id-123",
-                    "requested_at": "2026-10-13T20:00:00+00:00"}
+            return {
+                "status": "submitted",
+                "job": FailedJob(),
+                "job_id": "id-123",
+                "requested_at": "2026-10-13T20:00:00+00:00",
+            }
 
     plan = SimpleNamespace(summary=lambda: {"n_circuits": 2})
     with pytest.raises(RuntimeError, match="connection lost"):
