@@ -189,15 +189,20 @@ def execute(
 
     raw: dict[str, Any] = {"snapshots": [session.snapshot(qubits)], "jobs": []}
     raw["calibration_history"] = calibration_history_probe(session.backend)
-    emit("session_started", {
-        "snapshot": raw["snapshots"][0],
-        "qubits": qubits,
-        "calibration_history": raw["calibration_history"],
-    })
+    emit(
+        "session_started",
+        {
+            "snapshot": raw["snapshots"][0],
+            "qubits": qubits,
+            "calibration_history": raw["calibration_history"],
+        },
+    )
 
     def run_and_save(plan, label: str) -> None:
         completed = _run(
-            session, plan, label,
+            session,
+            plan,
+            label,
             on_submitted=lambda event: emit("job_submitted", event),
         )
         raw["jobs"].append(completed)
@@ -214,12 +219,16 @@ def execute(
     run_and_save(plans["sweep1"], "sweep1")
     raw["snapshots"].append(session.snapshot(qubits))
     raw["session_log"] = [{k: v for k, v in e.items() if k != "job"} for e in session.log]
-    emit("session_completed", {
-        "snapshot": raw["snapshots"][-1],
-        "session_log": raw["session_log"],
-        "job_count": len(raw["jobs"]),
-    })
+    emit(
+        "session_completed",
+        {
+            "snapshot": raw["snapshots"][-1],
+            "session_log": raw["session_log"],
+            "job_count": len(raw["jobs"]),
+        },
+    )
     return raw
+
 
 # --------------------------------------------------------------------------- analysis (pure function of the raw record)
 
