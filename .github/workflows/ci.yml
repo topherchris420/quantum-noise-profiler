@@ -93,7 +93,7 @@ jobs:
           mkdir -p "$QNP_RESULTS_DIR"
           for e in calibrate C D F; do python experiments/run_v02.py $e --smoke --workers 2; done
           for e in G H I; do python experiments/run_v03.py $e --smoke --workers 2; done
-          python experiments/run_v03.py pilot --fake FakeManilaV2 --submit --interval 0
+          python experiments/run_v03.py pilot --fake FakeManilaV2 --submit --interval 0 --checkpoint-dir "$RUNNER_TEMP/pilot-checkpoints"
       - name: smoke outputs validate against the schema and recompute exactly
         run: |
           python tools/check_provenance.py --results-dir "$QNP_RESULTS_DIR" --allow-smoke --allow-rehearsal

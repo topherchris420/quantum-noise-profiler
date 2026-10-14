@@ -2,3 +2,8 @@
 __pycache__/
 *.egg-info/
 .pytest_cache/
+
+# Raw QPU measurement checkpoints and local credentials
+.qnp/
+pilot-checkpoints/
+*.pilot-checkpoint.json
