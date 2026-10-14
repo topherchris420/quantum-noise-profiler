@@ -1,8 +1,12 @@
 """Regression tests for descriptive pilot diagnostics; no QPU calls."""
 
 import json
+import sys
+from pathlib import Path
 
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.pilot_diagnostics import describe_rates, load_hardware_pilot
 
