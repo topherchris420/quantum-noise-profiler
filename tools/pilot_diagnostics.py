@@ -46,11 +46,10 @@ def describe_rates(rates: list[float], shots_per_batch: int = 4000) -> dict:
 def load_hardware_pilot(path: Path, run_id: str | None = None) -> dict:
     if not path.is_file():
         raise FileNotFoundError(f"missing {path}; no pilot entries available")
-    runs = [
-        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
-    ]
+    runs = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     candidates = [
-        r for r in runs
+        r
+        for r in runs
         if r.get("experiment") == "V03_P_pilot"
         and r.get("config", {}).get("local_simulation") is False
         and (run_id is None or r.get("run_id") == run_id)
@@ -68,8 +67,10 @@ def main(argv=None) -> None:
     entry = load_hardware_pilot(args.results_dir / "runs.jsonl", args.run_id)
     s = entry["summary"]
     print(f"Experiment P: {entry['run_id']} on {s['backend']}")
-    print(f"Original registered results: P.C1 {s['P1_n_rejected']}/10 rejected; P.C2 "
-          f"{s['P2_n_reference_rejected']}/10 rejected")
+    print(
+        f"Original registered results: P.C1 {s['P1_n_rejected']}/10 rejected; P.C2 "
+        f"{s['P2_n_reference_rejected']}/10 rejected"
+    )
     print("EXPLORATORY only: variance ratios and lag-1 correlations use the SAME 12 pilot batches.")
     print("Series | mean % | min % | max % | variance / binomial | lag-1 | G/dof | p")
     print("--- | ---: | ---: | ---: | ---: | ---: | ---: | ---:")
@@ -81,10 +82,14 @@ def main(argv=None) -> None:
         ratio = "-" if d["variance_ratio"] is None else f"{d['variance_ratio']:.2f}"
         lag1 = "-" if d["lag1_descriptive"] is None else f"{d['lag1_descriptive']:.2f}"
         label = key.replace("|", "&#124;")
-        print(f"{label} | {100*d['mean']:.3f} | {100*d['min']:.3f} | {100*d['max']:.3f} | "
-              f"{ratio} | {lag1} | {value['dispersion']:.2f} | {value['p']:.3g}")
-    print("Neither a variance ratio nor a lag correlation establishes drift, detector accuracy, "
-          "a physical mechanism, or an anytime-valid bound.")
+        print(
+            f"{label} | {100 * d['mean']:.3f} | {100 * d['min']:.3f} | {100 * d['max']:.3f} | "
+            f"{ratio} | {lag1} | {value['dispersion']:.2f} | {value['p']:.3g}"
+        )
+    print(
+        "Neither a variance ratio nor a lag correlation establishes drift, detector accuracy, "
+        "a physical mechanism, or an anytime-valid bound."
+    )
 
 
 if __name__ == "__main__":
