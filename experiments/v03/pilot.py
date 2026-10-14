@@ -26,8 +26,9 @@ from __future__ import annotations
 import itertools
 import math
 import time
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 
