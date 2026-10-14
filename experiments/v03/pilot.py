@@ -26,6 +26,7 @@ from __future__ import annotations
 import itertools
 import math
 import time
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -126,13 +127,24 @@ def _pub_counts(pub) -> dict[str, dict[str, int]]:
     return {name: {k: int(v) for k, v in getattr(data, name).get_counts().items()} for name in names}
 
 
-def _run(session, plan, label: str) -> dict:
+def _run(session, plan, label: str, on_submitted: Callable[[dict], None] | None = None) -> dict:
     from qnp.hardware import execution_timestamps
 
     rec = session.submit(plan, authorize=True)
     if rec["status"] != "submitted":
         raise RuntimeError(f"{label}: not submitted ({rec.get('status')})")
     job = rec.pop("job")
+    # Persist the job ID BEFORE waiting for results. The host may terminate
+    # the process while it is blocked in job.result().
+    if on_submitted is not None:
+        on_submitted(
+            {
+                "label": label,
+                "job_id": rec["job_id"],
+                "submitted_at": rec["requested_at"],
+                "plan": plan.summary(),
+            }
+        )
     result = job.result()
     done = datetime.now(timezone.utc)
     return {
@@ -157,23 +169,64 @@ def calibration_history_probe(backend) -> dict[str, Any]:
         return {"available": False, "error": f"{type(exc).__name__}: {exc}"[:300]}
 
 
-def execute(session, plans: dict, qubits: list[int], interval_s: float = INTERVAL_S, sleep=time.sleep) -> dict:
-    """Run the pilot; returns the raw record (counts, job ids, timestamps,
-    snapshots). Probe batches start every ``interval_s`` seconds (later if a
-    job queues longer)."""
+def execute(
+    session,
+    plans: dict,
+    qubits: list[int],
+    interval_s: float = INTERVAL_S,
+    sleep=time.sleep,
+    checkpoint: Callable[[str, dict], Any] | None = None,
+) -> dict:
+    """Run one complete pilot. Optional checkpoint persists each job and ID.
+
+    The 12 probe intervals and scientific protocol are unchanged. Interrupted
+    data remain in the local journal and are never included in a full run.
+    """
+
+    def emit(stage: str, payload: dict) -> None:
+        if checkpoint is not None:
+            checkpoint(stage, payload)
+
     raw: dict[str, Any] = {"snapshots": [session.snapshot(qubits)], "jobs": []}
     raw["calibration_history"] = calibration_history_probe(session.backend)
-    raw["jobs"].append(_run(session, plans["sweep0"], "sweep0"))
+    emit(
+        "session_started",
+        {
+            "snapshot": raw["snapshots"][0],
+            "qubits": qubits,
+            "calibration_history": raw["calibration_history"],
+        },
+    )
+
+    def run_and_save(plan, label: str) -> None:
+        completed = _run(
+            session,
+            plan,
+            label,
+            on_submitted=lambda event: emit("job_submitted", event),
+        )
+        raw["jobs"].append(completed)
+        emit("job_completed", completed)
+
+    run_and_save(plans["sweep0"], "sweep0")
     t_next = time.monotonic()
     for b in range(N_PROBE_BATCHES):
         wait = t_next - time.monotonic()
         if wait > 0:
             sleep(wait)
         t_next = time.monotonic() + interval_s
-        raw["jobs"].append(_run(session, plans["probe"], f"probe{b}"))
-    raw["jobs"].append(_run(session, plans["sweep1"], "sweep1"))
+        run_and_save(plans["probe"], f"probe{b}")
+    run_and_save(plans["sweep1"], "sweep1")
     raw["snapshots"].append(session.snapshot(qubits))
     raw["session_log"] = [{k: v for k, v in e.items() if k != "job"} for e in session.log]
+    emit(
+        "session_completed",
+        {
+            "snapshot": raw["snapshots"][-1],
+            "session_log": raw["session_log"],
+            "job_count": len(raw["jobs"]),
+        },
+    )
     return raw
 
 

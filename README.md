@@ -13,10 +13,23 @@ session, and refuses to report estimates its data or model cannot support.**
 > 6 of 10 series). See [What is not known](#what-is-not-known) and
 > [`results/V03_SUMMARY.md`](results/V03_SUMMARY.md).
 
+## First physical-QPU experiment: what the assumptions got wrong
+
+**IBM `ibm_fez` · October 13–14, 2026 UTC · 5 qubits · 14 jobs · 296,000 shots · 130 seconds QPU time.** A preregistered two-hour pilot tested *assumptions*, not whether the alerts predict real hardware failures.
+
+| Assumption check | Real-device result | Status |
+|---|---|---|
+| P.C1: each readout-probe series has a constant binomial error rate across 12 batches | 6 of 10 series reject | **Not supported on this device** |
+| P.C2: interleaved ground references detect readout drift within T1 sweeps | 0 of 10 sweeps reject | **No within-job drift detected** |
+
+On qubit **108**, `p(0|1)` rose from around 1% to nearly 3%, then partially recovered. Five drift alerts followed. **We cannot label them true or false warnings without independent reference data.** The v0.3 simulations do not establish detector validity on the real device.
+
+[**Read the hardware addendum**](docs/report/HARDWARE_ADDENDUM.md) · [Raw-data-backed results](results/V03_SUMMARY.md) · [Future holdout-study plan](experiments/P04_FOLLOWUP_PLAN.md)
+
 ## Technical report
 
 **Warnings a qubit monitor can stand behind** — an assessment of Quantum Noise Profiler (`qnp`) v0.3.
-Christopher Woodyard, Vers3Dynamics · October 2026 · 10 pages · simulation evidence only, no hardware data.
+Christopher Woodyard, Vers3Dynamics · October 2026 · 10 pages. **Historical simulation-only report written before Experiment P**; for the real-QPU findings, read the [hardware addendum](docs/report/HARDWARE_ADDENDUM.md).
 
 <p>
   <a href="https://github.com/topherchris420/quantum-noise-profiler/blob/main/docs/report/qnp-technical-report.pdf"><img src="https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p01.png" width="49%" alt="Report cover"></a>
@@ -53,7 +66,7 @@ detection accuracy requires a separately defined independent reference.
 
 A later **optional, separately approved** phase could run dedicated T1/T2 and
 fixed-context probe circuits under explicit provider authorization and
-shot/time budgets. Neither phase has started; no hardware results exist.
+shot/time budgets. Neither proposed longer-term phase has started. The separately authorized short **Experiment P has already run**; see the hardware addendum.
 
 Researchers at national laboratories, NIST, universities, and other quantum
 facilities can review the [proposed study and collaboration checklist](docs/HARDWARE_VALIDATION.md).
@@ -189,6 +202,7 @@ smallest (10%) steps more often within 24 batches (0.64 vs 0.52).
     sends nothing; adding `--submit` runs it. It submits jobs, so it is the
     separately authorized kind of experiment, not part of the read-only
     observation study.
+  - **Interrupted QPU jobs:** future runs save per-job IDs and results in a local private checkpoint directory; no automatic resume or stitching. See [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md).
   - See [`docs/HARDWARE_VALIDATION.md`](docs/HARDWARE_VALIDATION.md).
 - **Other noise processes.** Leakage, coherent errors, crosstalk, 1/f
   dephasing and correlated multi-qubit errors are not simulated
@@ -253,13 +267,14 @@ a **Bayesian-marginal** guarantee, with fixed-rate false alerts evaluated by
 simulation. Gaussian approximations and plug-in uncertainty estimates carry
 their own limitations. The faster calibrated configuration **does not retain
 the anytime-valid guarantee**. Each alert reports its guarantee type, and
-none of these claims has yet been validated on hardware. Details:
+the pilot tested assumptions but did **not** validate monitoring accuracy or false-alert guarantees on hardware. Details:
 [`docs/SEQUENTIAL_METHODS.md`](docs/SEQUENTIAL_METHODS.md).
 
 ## Reproduce and verify
 
 ```bash
 python tools/verify_results.py    # hashes + recompute every reported number from raw data
+python tools/pilot_diagnostics.py # exploratory diagnostics of the recorded QPU pilot
 python tools/check_provenance.py  # schema, clean source tree, preregistered seed blocks
 python experiments/run_v03.py H   # re-run an experiment (appends; never overwrites)
 python tools/make_figures.py && python tools/make_v03_figures.py
@@ -271,7 +286,9 @@ See [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md).
 
 | Document | Contents |
 |---|---|
-| [`docs/report/qnp-technical-report.pdf`](docs/report/qnp-technical-report.pdf) | 10-page technical report for a general technical audience (v0.3, simulation evidence only) |
+| [`docs/report/qnp-technical-report.pdf`](docs/report/qnp-technical-report.pdf) | Original 10-page simulation-only report, preserved as written |
+| [`docs/report/HARDWARE_ADDENDUM.md`](docs/report/HARDWARE_ADDENDUM.md) | Accessible, text-based account of the real-device pilot and its negative assumption check |
+| [`experiments/P04_FOLLOWUP_PLAN.md`](experiments/P04_FOLLOWUP_PLAN.md) | Unexecuted future independent hardware study, baselines, evidence safeguards |
 | [`paper/paper.md`](paper/paper.md) | research report: definitions, hypotheses, methods, results, limitations, references |
 | [`experiments/V03_PREREGISTRATION.md`](experiments/V03_PREREGISTRATION.md) | v0.3 protocol (G, H, I and the hardware pilot P), committed before data |
 | [`results/V03_SUMMARY.md`](results/V03_SUMMARY.md), [`results/V03_TABLES.md`](results/V03_TABLES.md) | v0.3 results, every criterion, full tables |

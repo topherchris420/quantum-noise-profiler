@@ -7,9 +7,11 @@
     python experiments/run_v03.py pilot --fake FakeTorino --submit --interval 0   # rehearsal (local, not evidence)
 
 G and I reuse the calibrated thresholds of the v0.2 calibration run (c*,
-h*, k*; read from results/runs.jsonl). Each invocation appends one entry to
+h*, k*; read from results/runs.jsonl). Each completed invocation appends one entry to
 results/runs.jsonl and one gzipped raw file to results/raw/; nothing is
-overwritten. Smoke and rehearsal runs must write elsewhere (QNP_RESULTS_DIR).
+overwritten. The pilot also journals each job to a private per-run checkpoint
+directory, including interrupted runs; it does not resume or stitch them.
+Smoke and rehearsal runs must write elsewhere (QNP_RESULTS_DIR).
 """
 
 from __future__ import annotations
@@ -236,6 +238,7 @@ def _backend(args):
 
 def run_pilot(args) -> dict | None:
     from v03 import pilot as P
+    from v03.checkpoints import PilotCheckpoint
 
     from qnp.hardware import HardwareSession, JobBudget
 
@@ -272,7 +275,9 @@ def run_pilot(args) -> dict | None:
         rec = session.submit(plans["probe"])  # dry run: describes, sends nothing
         print(f"DRY RUN: nothing was sent ({rec['status']}). Re-run with --submit to execute.")
         return None
-    raw = P.execute(session, plans, qubits, interval_s=args.interval)
+    checkpoint = PilotCheckpoint(args.checkpoint_dir)
+    print(f"Local, private job checkpoints: {checkpoint.directory}", flush=True)
+    raw = P.execute(session, plans, qubits, interval_s=args.interval, checkpoint=checkpoint.record)
     cfg = {
         "backend": snap["backend_name"],
         "local_simulation": snap["local_simulation"],
@@ -295,6 +300,7 @@ def run_pilot(args) -> dict | None:
     criteria = [Criterion(*c) for c in P.criteria(summary)]
     notes = "REHEARSAL on a fake backend (local simulation) - not hardware evidence" if args.fake else ""
     entry = record("V03_P_pilot", cfg, summary, criteria, [raw], started, notes, env0, PROTOCOL, compress=True)
+    checkpoint.record("research_recorded", {"run_id": entry["run_id"], "passed_all": entry["passed_all"]})
     _print_entry(entry)
     return entry
 
@@ -319,6 +325,11 @@ def main(argv=None):
     )
     ap.add_argument("--submit", action="store_true", help="pilot: actually run the jobs (default: dry run)")
     ap.add_argument("--interval", type=float, default=600.0, help="pilot: seconds between probe batches")
+    ap.add_argument(
+        "--checkpoint-dir",
+        default=None,
+        help="pilot: private checkpoint root (default: ~/.qnp/pilot-checkpoints); no automatic resume",
+    )
     args = ap.parse_args(argv)
     if args.experiment == "pilot":
         return run_pilot(args)
