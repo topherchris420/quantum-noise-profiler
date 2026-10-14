@@ -24,11 +24,14 @@ def test_excursion_series_shows_excess_variance():
     assert d["max"] == pytest.approx(0.03)
 
 
-@pytest.mark.parametrize("rates,shots", [
-    ([0.1, 0.2], 4000),
-    ([0.1, -0.2, 0.3], 4000),
-    ([0.1, 0.2, 0.3], 0),
-])
+@pytest.mark.parametrize(
+    "rates,shots",
+    [
+        ([0.1, 0.2], 4000),
+        ([0.1, -0.2, 0.3], 4000),
+        ([0.1, 0.2, 0.3], 0),
+    ],
+)
 def test_malformed_rates_fail_closed(rates, shots):
     with pytest.raises(ValueError):
         describe_rates(rates, shots)
