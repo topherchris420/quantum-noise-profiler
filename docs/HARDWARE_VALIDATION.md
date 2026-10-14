@@ -1,7 +1,10 @@
 # IBM Quantum validation pathway
 
 One real-device experiment has been run for this project: Experiment P, 14
-jobs on `ibm_fez` on 2026-10-13/14 (`results/V03_SUMMARY.md` §1). Everything
+jobs on `ibm_fez` on 2026-10-13/14 (`results/V03_SUMMARY.md` §1). Its
+preregistered constant-rate assumption check failed (6/10 series), and
+its within-sweep reference check did not reject (0/10 sweeps). The
+[hardware addendum](report/HARDWARE_ADDENDUM.md) explains the limited result. Everything
 else in `results/` is simulation. This document covers:
 
 - an invitation to collaborate on a proposed 30-day, **read-only**
@@ -99,7 +102,15 @@ python experiments/run_v03.py pilot --submit                 # runs it (least bu
 python experiments/run_v03.py pilot --backend ibm_xxx --submit
 ```
 
-The run appends a `V03_P_pilot` entry to `results/runs.jsonl` with every
+During a new authorized run, each submitted job ID and then each completed
+job's counts and metadata are also saved **locally and atomically** under
+`~/.qnp/pilot-checkpoints/` (or `--checkpoint-dir PATH`). These partial
+checkpoints are private, are not automatically submitted to GitHub, and
+must **not** be stitched into a completed preregistered session. No
+automatic resume/retry is attempted. The prior interrupted attempts are
+documented separately in `results/V03_DEVIATIONS.md`.
+
+The completed run appends a `V03_P_pilot` entry to `results/runs.jsonl` with every
 count, job id, timestamp and snapshot in its raw file;
 `tools/verify_results.py` recomputes its summary. A rehearsal on a fake
 backend tests the code path without hardware and must write elsewhere:

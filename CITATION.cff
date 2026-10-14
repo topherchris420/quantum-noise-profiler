@@ -3,9 +3,10 @@ title: "Quantum Noise Profiler: provenance-aware, sequentially calibrated qubit 
 message: "If you use this software or its results, please cite it as below, and cite the frameworks it builds on (Qiskit, Qiskit Aer, Qiskit Experiments, Cirq)."
 type: software
 authors:
-  - name: "Vers3Dynamics"
+  - family-names: "Woodyard"
+    given-names: "Christopher"
+    affiliation: "Vers3Dynamics"
 version: "0.3.0.dev0"
-date-released: "2026-10-13"
 license: MIT
 repository-code: "https://github.com/topherchris420/quantum-noise-profiler"
 keywords:
@@ -24,8 +25,11 @@ abstract: >-
   applies absolute thresholds only to workload-independent readout probes, and
   refuses to report relaxation times when the single-exponential model is
   contradicted by the data or the measurement drifted during the sweep.
-  Evaluated in preregistered simulation studies only; no hardware results
-  exist yet.
+  Evaluated with preregistered simulation studies and a subsequent
+  preregistered 14-job assumption-check pilot on IBM ibm_fez (October 2026).
+  Six of ten probe series rejected a constant-rate binomial model across
+  batches; zero of ten T1 sweeps detected within-job reference drift.
+  Hardware warning accuracy and generality have not been established.
 references:
   - type: software
     title: Qiskit

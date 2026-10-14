@@ -1,10 +1,10 @@
 # Trustworthy warnings from continuous qubit-noise monitoring: anytime-valid alerts, abstaining forecasts and model-checked relaxation fits
 
-*Quantum Noise Profiler v0.2 research report, with the preregistered v0.3 follow-up in §11. Simulation study; no hardware results.*
+*Quantum Noise Profiler v0.2 research report, with preregistered v0.3 simulation follow-up and real-device assumption check in §11.5. The pilot does not validate monitoring accuracy.*
 
 ## Abstract
 
-A continuously re-tested noise monitor must control how often it raises false alarms over a whole session, not per check, and must refuse estimates its data cannot support. We describe Quantum Noise Profiler v0.2, which replaces per-check posterior bars with anytime-valid e-processes under an explicit session error budget, issues threshold-crossing forecasts with predictive intervals and machine-readable abstention reasons, and withholds T1/T2 values when model checks fail. In a preregistered simulation study (disjoint development, calibration and test seeds; every method on identical data), the run-level false-alert probability on stable qubits fell from 0.43–0.88 (v0.1) to at most 0.010 with anytime-valid thresholds and at most 0.070 with empirically calibrated thresholds, including 24 h sessions. At matched false-alert rates, the calibrated engine gave longer warning on gradual drift than calibrated Shewhart and CUSUM charts (253 vs 223 and 213 min) and faster detection of 20% steps, but CUSUM detected 10% steps more often. The relaxation fit refused to report a value for fluctuating T1 and two-component decays that v0.1 had fitted confidently and wrongly, but it was fooled by correlated readout drift during the sweep (28.5% false confidence). Exact circuit contexts separated most workload changes from hardware changes, but an absolute threshold on workload-dependent error rates misfired. 53 of 62 preregistered checks passed. A preregistered follow-up (v0.3, §11) moved the absolute threshold to readout probes, which removed the workload misfire, and made relaxation sweeps drift-robust (0.5% false confidence under the same drift). In a closed-loop simulation, recalibrating on warnings ran far fewer jobs on degraded qubits than fixed schedules at equal calibration cost, though a calibrated CUSUM did as well. All 40 of its simulation criteria passed; its hardware pilot has not been run. No result concerns real hardware.
+A continuously re-tested noise monitor must control how often it raises false alarms over a whole session, not per check, and must refuse estimates its data cannot support. We describe Quantum Noise Profiler v0.2, which replaces per-check posterior bars with anytime-valid e-processes under an explicit session error budget, issues threshold-crossing forecasts with predictive intervals and machine-readable abstention reasons, and withholds T1/T2 values when model checks fail. In a preregistered simulation study (disjoint development, calibration and test seeds; every method on identical data), the run-level false-alert probability on stable qubits fell from 0.43–0.88 (v0.1) to at most 0.010 with anytime-valid thresholds and at most 0.070 with empirically calibrated thresholds, including 24 h sessions. At matched false-alert rates, the calibrated engine gave longer warning on gradual drift than calibrated Shewhart and CUSUM charts (253 vs 223 and 213 min) and faster detection of 20% steps, but CUSUM detected 10% steps more often. The relaxation fit refused to report a value for fluctuating T1 and two-component decays that v0.1 had fitted confidently and wrongly, but it was fooled by correlated readout drift during the sweep (28.5% false confidence). Exact circuit contexts separated most workload changes from hardware changes, but an absolute threshold on workload-dependent error rates misfired. 53 of 62 preregistered checks passed. A preregistered follow-up (v0.3, §11) moved the absolute threshold to readout probes, which removed the workload misfire, and made relaxation sweeps drift-robust (0.5% false confidence under the same drift). In a closed-loop simulation, recalibrating on warnings ran far fewer jobs on degraded qubits than fixed schedules at equal calibration cost, though a calibrated CUSUM did as well. All 40 of its simulation criteria passed. The independently preregistered pilot then ran on IBM ibm_fez (14 jobs, five qubits), where six of ten readout series rejected the constant-rate binomial null while zero of ten T1 sweeps detected within-job reference drift. These first physical-device data challenge the v0.3 drift model's null assumptions; they do not establish hardware warning accuracy or generality.
 
 ## 1. Introduction
 
@@ -371,7 +371,7 @@ series: exact contexts fix most workload shifts, but an absolute threshold
 on a workload-dependent rate is a category error that the study exposed and
 v0.2 does not fix.
 
-## 9. Limitations
+## 9. Limitations of the v0.2 simulation study (historical)
 
 1. **Simulation only.** No real-device data; batch independence, binomial
    per-context counts and the absence of within-job drift are assumptions.
@@ -414,7 +414,7 @@ and pushed before any confirmatory run) addressed limitations 1, 2 and 4 of
 §9 and asked whether earlier warnings have operational value. Three
 simulation experiments ran unchanged from the protocol: G (thresholds), H
 (decay fits) and I (operational value). 40 of 40 criteria passed. A hardware
-pilot (P) is specified and rehearsed but has not run. Details and every
+pilot (P) subsequently ran once on IBM ibm_fez and challenged the constant-rate readout null (§11.5). Details and every
 criterion: `results/V03_SUMMARY.md`, `results/V03_TABLES.md`.
 
 ### 11.1 What changed
@@ -527,38 +527,49 @@ were triggered while the qubit was neither above threshold nor degraded by
 10%, the stationary-fluctuation problem of §9 item 3. Third, probe shots
 were not counted as a cost. All 9 criteria passed.
 
-### 11.5 Hardware pilot (Experiment P): specified, not run
+### 11.5 Physical-QPU pilot (Experiment P): P.C1 fails; P.C2 passes
 
-The same protocol fixes a pilot of 14 jobs over about two hours on one IBM
-Quantum device. It submits jobs and uses QPU time, so it is an active,
-separately authorized experiment, distinct from the read-only observation
-study proposed in `docs/HARDWARE_VALIDATION.md`. It consists of a T1 sweep
-on five qubits (interleaved design), twelve probe batches ten minutes
-apart, and a second sweep. A budget of 320,000 shots and 420 s estimated
-QPU time is enforced before every job. The pilot checks the two
-assumptions the v0.3 methods rest on:
+Experiment P, fixed in `experiments/V03_PREREGISTRATION.md` before execution, ran on IBM `ibm_fez` on 2026-10-13/14 UTC using **qubits 54, 108, 127, 59 and 87**. The 14 jobs produced 296,000 shots over approximately two hours, at 130 seconds of reported QPU usage. The unchanged experiment collected a T1 sweep, 12 prepare-and-measure probe batches 10 minutes apart, and a second T1 sweep. The resource cap was 320,000 shots and 420 seconds estimated QPU time. Two previous attempts on `ibm_kingston` were interrupted and **excluded** (see `results/V03_DEVIATIONS.md`). The recorded complete run is `V03_P_pilot-20261013T234830-220ff3` (clean source commit `1ea9556`).
 
-- that probe counts are binomial with a constant rate over two hours (P.C1,
-  the drift channel's null hypothesis);
-- that readout is stable within a sweep job (P.C2).
+Two prospectively fixed model checks gave different answers:
 
-Rehearsals on fake backends exercised the full path and found two defects,
-both fixed before the protocol was committed: delays off the device's timing
-grid, and qubits whose vendor T2 exceeds 2·T1. The pilot has not been run
-because no IBM Quantum account was available.
+1. **P.C1 fails: constant-rate binomial readout is inadequate over this session.** Of 5 qubits × 2 preparations, **6 of 10** series rejected a constant error rate across 12 batches at α = 0.01, exceeding the prespecified allowance of ≤ 1. The rejecting series had G/degrees-of-freedom between 2.3 and 12.6. For qubit 108, `p(0|1)` increased from approximately 1.0% to 2.98% and then partially recovered. The binomial constant-rate null therefore does not describe all the measured series. The test does not distinguish physical drift, temporal dependence or unmodeled experimental variation.
+2. **P.C2 passes: no within-job reference drift detected in these sweeps.** Zero of ten T1 sweeps rejected ground-reference homogeneity (allowance ≤ 1, α = 0.01). This is a non-rejection with limited power, not proof that readout is stationary.
+
+Seven of ten T1 fits passed the model checks; three abstained for insufficient evidence or misspecification. Among accepted estimates, qubit 87 changed from 167 µs [150, 189] to 94 µs [88, 101] between sweeps. The v0.3 drift engine emitted five warnings on qubit 108 after the probe excursion. **No independent hardware deterioration reference was measured**, so neither their correctness nor detector false-positive/true-positive performance can be inferred. Vendor calibration values are not ground truth.
+
+The complete numerical results, per-series probe rates, raw counts, timestamps, calibration snapshots and limitations are in [the hardware addendum](../docs/report/HARDWARE_ADDENDUM.md), `results/V03_SUMMARY.md` and `results/runs.jsonl`. The original simulation-only 10-page PDF is retained as a dated historical snapshot, not silently rewritten.
 
 ### 11.6 Limitations after v0.3
 
-Items 2 and 4 of §9 are addressed in simulation. Item 1 remains: the pilot
-is ready but not run. Item 3 now has a measured operational cost (false
-triggers in Experiment I). Items 5–9 are unchanged. Three limitations are
-new:
+Items 2 and 4 of §9 are addressed **in simulation**. The physical-QPU
+pilot now directly challenges the constant-rate assumption from §9 item 1:
+6 of 10 probe series reject a fixed binomial rate across jobs. Within-job
+drift was not detected in the limited P.C2 sweeps. Stationary fluctuations
+(item 3) have a simulated operational cost and now a real-device motivation,
+but the actual hardware false-alert rate is **unknown**. Items 5–9 remain
+limitations. Additional constraints:
 
 - The operational result depends on illustrative degradation rates.
 - It assumes the user can recalibrate, which cloud users cannot; for them
   the intervention is avoiding or remapping a degraded qubit, which has not
   been tested.
 - Readout probes cost shots in every monitored job.
+- No second backend, multi-day replication, or independently labeled
+  deterioration event was tested; the five drift warnings cannot be scored.
+- A constant-rate null is an unsafe assumption for this device's observed
+  between-batch variation, and the v0.3 drift-channel's guarantee cannot
+  simply be transferred to this different data-generating process.
+
+### 11.7 Planned independent follow-up (not run)
+
+The exploratory variance and lag-correlation diagnostics of the existing
+pilot may be reproduced with `python tools/pilot_diagnostics.py`. They are
+**not** an independent experiment. A new hardware validation, including
+held-out sessions, fixed robust-model and CUSUM baselines, session-level
+error accounting, independent labels when feasible, and QPU cost, is
+proposed in `experiments/P04_FOLLOWUP_PLAN.md`. No P04 data have been
+collected.
 
 ## References
 

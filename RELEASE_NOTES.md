@@ -1,5 +1,21 @@
 # Release notes
 
+## Unreleased: post-P research integrity and safety hardening
+
+- **Research record:** synchronized README, paper and `CITATION.cff` with
+  the complete IBM Fez pilot. Added `docs/report/HARDWARE_ADDENDUM.md`.
+  The ten-page PDF is intentionally preserved as the original simulation-only
+  snapshot rather than retroactively altering an earlier report.
+- **No manufactured success:** P.C1 remains a failed constant-rate assumption
+  (6/10 rejecting), P.C2 a non-rejection (0/10), and hardware warning
+  accuracy unestablished. The 40/40 simulation outcomes are unchanged.
+- **Crash-safe QPU checkpoints:** private, atomic and fsynced per-job
+  submission IDs and measurements; no automatic resume or unexpected
+  resubmission. Added interruption tests.
+- **Exploration only:** read-only pilot variability diagnostics and a written
+  proposal for independent P04 hardware validation and fair CUSUM baselines;
+  no thresholds silently recalibrated and no new hardware jobs submitted.
+
 ## v0.3.0 (development, not yet released)
 
 Research release addressing three of the v0.2 release blockers. The new
