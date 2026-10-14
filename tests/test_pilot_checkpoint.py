@@ -10,8 +10,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "experiments"))
 
-from v03.checkpoints import PilotCheckpoint
 from v03 import pilot as P
+from v03.checkpoints import PilotCheckpoint
 
 
 def test_checkpoint_writes_atomic_private_events(tmp_path):
