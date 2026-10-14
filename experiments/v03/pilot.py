@@ -137,12 +137,14 @@ def _run(session, plan, label: str, on_submitted: Callable[[dict], None] | None 
     # Persist the job ID BEFORE waiting for results. The host may terminate
     # the process while it is blocked in job.result().
     if on_submitted is not None:
-        on_submitted({
-            "label": label,
-            "job_id": rec["job_id"],
-            "submitted_at": rec["requested_at"],
-            "plan": plan.summary(),
-        })
+        on_submitted(
+            {
+                "label": label,
+                "job_id": rec["job_id"],
+                "submitted_at": rec["requested_at"],
+                "plan": plan.summary(),
+            }
+        )
     result = job.result()
     done = datetime.now(timezone.utc)
     return {
