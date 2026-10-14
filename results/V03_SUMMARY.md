@@ -1,29 +1,35 @@
 # Results summary: v0.3 preregistered follow-up
 
 **40 of 40 preregistered simulation criteria passed** (G 12/12, H 19/19,
-I 9/9). **The hardware pilot (Experiment P) has not been run.** It is a
-short QPU experiment that submits 14 jobs. It is ready, but it needs an IBM
-Quantum account and the account holder's authorization, and none was
-available. It is separate from the read-only observation study proposed in
-`docs/HARDWARE_VALIDATION.md`. All numbers
-come from the run entries listed at the end. `tools/verify_results.py`
-recomputes every value from raw data. All three runs executed commit
-`8ea5b49` from a clean tree (`source_tree_sha256 b850a691…`). That commit
-added the protocol (`experiments/V03_PREREGISTRATION.md`) and was pushed
-before the first confirmatory run. Deviations from the protocol: none.
-Three code changes were made after the runs, none affecting a recorded
-result: a pre-data fix to the pilot's analysis code, a tighter
+I 9/9). **The hardware pilot (Experiment P) ran on `ibm_fez` on
+2026-10-13/14: P.C2 passed (0 of 10 sweeps) and P.C1 failed (6 of 10 probe
+series).** A failed P check is a finding about the device, not a failure of
+the pilot (protocol §5): on this device, readout error fluctuated between
+batches by more than binomial noise allows. The pilot is a 14-job QPU
+experiment, separate from the read-only observation study proposed in
+`docs/HARDWARE_VALIDATION.md`. All numbers come from the run entries listed
+at the end. `tools/verify_results.py` recomputes every value from raw data.
+The three simulation runs executed commit `8ea5b49` from a clean tree
+(`source_tree_sha256 b850a691…`). That commit added the protocol
+(`experiments/V03_PREREGISTRATION.md`) and was pushed before the first
+confirmatory run. The pilot executed commit `1ea9556` from a clean tree
+(`src/` and `experiments/` as at `5e4d270`). Deviations from the protocol in
+method: none. Two pilot launches were interrupted by the host before
+completing; their jobs are listed, unused, in `results/V03_DEVIATIONS.md`.
+Three code changes were made after the simulation runs, none affecting a
+recorded result: a pre-data fix to the pilot's analysis code, a tighter
 readout-probe recognizer and a typing change (`results/V03_DEVIATIONS.md`).
 Full tables: `results/V03_TABLES.md`.
 Figures: `paper/figures/fig8`–`fig10`.
 
-**Scope.** G, H and I are simulations (Qiskit Aer, numpy). Nothing here is
-evidence about real quantum hardware. The degradation model in I is
-illustrative, not fitted to a device.
+**Scope.** G, H and I are simulations (Qiskit Aer, numpy); nothing in them is
+evidence about real quantum hardware. P is one device, five qubits and two
+hours: it checks assumptions, not detection performance. The degradation
+model in I is illustrative, not fitted to a device.
 
 ## The four questions
 
-### 1. Real-device pilot (Experiment P): ready, not run
+### 1. Real-device pilot (Experiment P): P.C2 passes, P.C1 fails
 
 The preregistration fixes the pilot in advance:
 
@@ -42,9 +48,9 @@ python experiments/run_v03.py pilot --submit    # ~2 h wall clock
 ```
 
 It needs the environment variables `QISKIT_IBM_TOKEN` (API key) and
-`QISKIT_IBM_INSTANCE` (instance CRN), plus network access to
-`quantum.cloud.ibm.com` and `iam.cloud.ibm.com`
-(`docs/HARDWARE_VALIDATION.md`).
+`QISKIT_IBM_INSTANCE` (instance CRN), or an account saved with
+`tools/ibm_connect.py`, plus network access to `quantum.cloud.ibm.com` and
+`iam.cloud.ibm.com` (`docs/HARDWARE_VALIDATION.md`).
 
 The pilot checks two assumptions of the method:
 
@@ -52,6 +58,74 @@ The pilot checks two assumptions of the method:
   hours. This is the drift channel's null hypothesis.
 - **P.C2:** readout is stable within one sweep job. This is what the v0.2
   sweep design needed, and what the v0.3 references detect.
+
+**The run** (`V03_P_pilot-20261013T234830-220ff3`):
+
+- **Backend:** `ibm_fez`, the least busy device at launch (no backend was
+  named).
+- **Qubits:** 54, 108, 127, 59 and 87, chosen by the rule from 155
+  candidates.
+- **Timing:** 14 jobs; probe batches from 23:49:37 to 01:39:40 UTC with a
+  median gap of 10.0 min. The service reported execution timestamps for all
+  14 jobs.
+- **Cost:** 296,000 shots and 130 s of the instance's QPU time (the pre-run
+  estimate was 144 s).
+
+| Check | Observed | Pass if | Result |
+|---|---|---|---|
+| P.C1 probe series (5 qubits × 2 preparations) rejecting one constant rate across 12 batches (G-test, α = 0.01) | 6 of 10 | ≤ 1 | **FAIL** |
+| P.C2 T1 sweeps (5 qubits × 2) whose interleaved ground references disagree (α = 0.01) | 0 of 10 | ≤ 1 | PASS |
+
+**P.C1: readout fluctuates between batches by more than binomial noise.**
+Under the null, two or more rejections out of 10 has probability about
+0.004; six were observed.
+
+- **Rejected series:** qubit 54 p(0\|1), 108 p(1\|0), 108 p(0\|1), 127
+  p(0\|1), 59 p(1\|0) and 87 p(1\|0).
+- **Dispersion:** their G statistic per degree of freedom is 2.3–12.6, where
+  binomial noise gives about 1.
+- **Largest excursion:** qubit 108's p(0\|1) was about 0.010 in batches 0–5,
+  0.028–0.030 in batches 6–7, then 0.012–0.016.
+- **Protocol's reading:** on this device, at this time scale, the drift
+  channel's null (one constant binomial rate between calibrations) does not
+  hold. Before deployment there, the monitor needs a fluctuation model or a
+  larger effect gate.
+
+**P.C2: no readout drift within a job.** In all 10 sweeps the interleaved
+ground references agree (smallest p = 0.085). The failure mode that the
+v0.3 design guards against did not occur in this run.
+
+**Also reported (no criteria):**
+
+- **T1 fits (MEASURED):** 7 of 10 accepted. The other three:
+  - qubit 108, first sweep: insufficient evidence (`FEW_INFORMATIVE_DELAYS`);
+  - qubit 108, second sweep: model misspecification;
+  - qubit 127, first sweep: model misspecification, bi-exponential decay
+    preferred.
+
+  Between the two sweeps, about two hours apart, two qubits' T1 changed so
+  much that their 95% intervals do not overlap:
+  - qubit 87: from 167 µs [150, 189] to 94 µs [88, 101];
+  - qubit 54: from 162 µs [151, 174] to 142 µs [134, 150].
+
+  The vendor calibration did not change during the pilot.
+- **Vendor values (OBSERVED), consistency only:**
+  - vendor T1 lies inside 2 of the 7 accepted T1 intervals;
+  - vendor readout errors lie inside the pooled probe interval for 4 of 10
+    series;
+  - the largest gap is qubit 59's p(0\|1): vendor 0.033, measured 0.0073
+    [0.0066, 0.0081].
+
+  Vendor values are not ground truth.
+- **The v0.3 engine (P4)** monitored 5 qubits × `readout_error`. It raised 5
+  WARNING drift alerts, all on qubit 108, at batches 7–11, after the
+  excursion in its p(0\|1) series. Whether they are true or false alarms
+  cannot be decided without an independent reference.
+- **Metadata (P5):**
+  - every property carried its own calibration timestamp;
+  - `properties(datetime=…)` returned calibration history on this Open Plan
+    account;
+  - properties did not change during the pilot.
 
 Rehearsals on the `FakeTorino` and `FakeManilaV2` backends ran the whole code
 path. They are local simulations, so they are not evidence. They found two
@@ -255,29 +329,34 @@ the daily schedule, for the policies that keep the daily schedule:
 | G workload changes with readout probes | 12/12 | – |
 | H T1 sweeps under measurement drift | 19/19 | – |
 | I operational value | 9/9 | – |
-| P hardware pilot | not run | – |
 | **Total (simulation)** | **40/40** | |
+| P hardware pilot (assumption checks, `ibm_fez`) | 1/2 (P.C2) | P.C1 |
 
 ## What remains before deployment on real hardware
 
 This updates `results/V02_SUMMARY.md` §8.
 
-1. **There is still no hardware data.** The pilot is preregistered, budgeted
-   and rehearsed, but has not run. Until it does, three things remain
-   assumptions:
-   - the binomial model of probe counts;
-   - batch independence;
-   - readout stability within a job.
+1. **Hardware data: one two-hour pilot on one device (`ibm_fez`).** Of the
+   three assumptions:
+   - the binomial constant-rate model of probe counts **failed** (P.C1: 6 of
+     10 series overdispersed);
+   - batch independence was not tested separately: overdispersion can come
+     from a changing rate or from correlated batches;
+   - readout stability within a job **held** (P.C2: 0 of 10 sweeps).
+
+   One device, five qubits and two hours do not show how general either
+   finding is.
 2. **Absolute thresholds on workload-dependent rates: addressed in
    simulation (G).** The fix needs readout probes in the monitored jobs
    (two circuits per batch here). Workload series keep only relative drift
    detection.
 3. **Stationary fluctuations at the effect-gate scale still alarm (v0.2
    A6).** In I they caused 0.27–0.44 false-trigger calibrations per
-   qubit-day. The pilot's P.C1 measures how large the device's fluctuations
-   are.
+   qubit-day. On `ibm_fez`, P.C1 found readout fluctuations well above
+   binomial noise (G/dof up to 12.6). The simulated false-trigger rates of I
+   are therefore probably optimistic for that device.
 4. **Correlated readout drift during a T1 sweep: addressed in simulation
-   (H).** P.C2 checks for it on a device. Coverage of valid fits at r = 1 and
+   (H).** P.C2 found none on `ibm_fez` (0 of 10 sweeps). Coverage of valid fits at r = 1 and
    r = 10 stays near 0.90, a pre-existing property.
 5. **Operational value is a simulation result** with illustrative
    degradation rates. A calibrated CUSUM achieves the same. Cloud users
@@ -296,7 +375,7 @@ This updates `results/V02_SUMMARY.md` §8.
 | G | `V03_G_workload_probes-20261013T053137-2ba66c` |
 | H | `V03_H_sweep_drift-20261013T051106-9b540d` |
 | I | `V03_I_operational-20261013T070404-7efe4c` |
-| P | not run |
+| P | `V03_P_pilot-20261013T234830-220ff3` |
 
 Calibration constants (c\* = 2.0, h\* = 10, k\* = 3.65) come from the v0.2
 calibration run `V02_calibration-20261012T205435-055ad8`; no new calibration

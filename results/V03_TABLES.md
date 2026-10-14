@@ -240,3 +240,12 @@ Paired differences (policy a - policy b), 95% bootstrap intervals:
 | I.C2/I4 | I4: v0.3 warnings only (no schedule), calibrations per qubit-day saved against the fixed-schedule frontier at the same failed-job fraction (lower 95% bootstrap bound) | 11.17 | >= 0 | PASS |
 | I.C3 | I0 stable device: v0.3 warnings only (no schedule), calibrations per qubit-day minus the daily schedule's | -0.5531 | <= 0 | PASS |
 
+## Experiment P — hardware pilot (`V03_P_pilot-20261013T234830-220ff3`)
+
+Backend `ibm_fez`, qubits [54, 108, 127, 59, 87]; timing {'first_probe': '2026-10-13T23:49:37.740109+00:00', 'last_probe': '2026-10-14T01:39:40.094188+00:00', 'median_gap_min': 10.008975933333334, 'execution_timestamps_reported': 14, 'n_jobs': 14}.
+
+| Criterion | Description | Observed | Required | Result |
+|---|---|---|---|---|
+| P.C1 | probe series rejecting one constant rate across batches (G-test, alpha 0.01), of 10 | 6 | <= 1 | FAIL |
+| P.C2 | T1 sweeps whose interleaved ground references disagree (alpha 0.01), of 10 | 0 | <= 1 | PASS |
+
