@@ -6,9 +6,8 @@ Research release addressing three of the v0.2 release blockers. The new
 methods were tested in a new preregistered simulation study
 (`experiments/V03_PREREGISTRATION.md`, committed and pushed before any
 confirmatory run; results in `results/V03_SUMMARY.md`). A short QPU
-experiment (the hardware pilot, Experiment P; 14 jobs) is preregistered and
-ready to run. It has not run: it needs an IBM Quantum account and the
-account holder's authorization.
+experiment (the hardware pilot, Experiment P; 14 jobs) ran on IBM `ibm_fez`
+on 2026-10-13/14.
 
 ### Results (simulation; 40 of 40 preregistered criteria passed)
 - **G, workload changes on unchanged hardware.** Runs with a false alert
@@ -26,7 +25,13 @@ account holder's authorization.
   - **Calibrations:** warnings alone did not use fewer calibrations than
     the daily schedule unless degradation was rare or absent.
   - **Baseline:** a calibrated CUSUM on the same probes did as well.
-- **P, hardware pilot:** not run.
+- **P, hardware pilot (`ibm_fez`, 5 qubits, 2 h).**
+  - **P.C2 passed:** no readout drift within a job (0 of 10 sweeps).
+  - **P.C1 failed:** readout error fluctuated between batches beyond
+    binomial noise (6 of 10 series; G/dof up to 12.6). On that device the
+    drift channel's constant-rate null does not hold.
+  - Two earlier launches were interrupted and are listed, unused, in
+    `results/V03_DEVIATIONS.md`.
 
 ### Workload-safe thresholds (`qnp.measured`, adapters, `qnp.drift`)
 - **Readout probes.** Prepare-and-measure circuits (`readout_probe_circuits`;

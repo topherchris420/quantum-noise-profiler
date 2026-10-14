@@ -1,0 +1,3 @@
+# Recorded results are hashed byte for byte (results/MANIFEST.sha256): never
+# convert their line endings on checkout, e.g. with core.autocrlf on Windows.
+results/** -text

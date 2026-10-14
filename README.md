@@ -4,13 +4,14 @@
 number, controls how often it raises false alarms over a whole monitoring
 session, and refuses to report estimates its data or model cannot support.**
 
-> **Status: v0.3 research prototype (`0.3.0.dev0`).** Every result below
-> comes from preregistered *simulations* (Qiskit Aer, Cirq, numpy). Nothing
-> has been run on quantum hardware yet. A short QPU experiment (Experiment
-> P, 14 jobs) is preregistered and ready to run. It needs an IBM Quantum
-> account and the account holder's explicit authorization, and it is separate
-> from the read-only observation study below. See
-> [What is not known](#what-is-not-known).
+> **Status: v0.3 research prototype (`0.3.0.dev0`).** The method results
+> below come from preregistered *simulations* (Qiskit Aer, Cirq, numpy). The
+> only hardware data is a short preregistered QPU experiment (Experiment P,
+> 14 jobs on IBM `ibm_fez`, two hours). It checks two of the method's
+> assumptions. Readout was stable within a job (P.C2 passed), but readout
+> error fluctuated between batches by more than binomial noise (P.C1 failed,
+> 6 of 10 series). See [What is not known](#what-is-not-known) and
+> [`results/V03_SUMMARY.md`](results/V03_SUMMARY.md).
 
 ## Technical report
 
@@ -173,15 +174,21 @@ smallest (10%) steps more often within 24 batches (0.64 vs 0.52).
 
 ## What is not known
 
-- **Real hardware.** No real-device data exist yet. Batch independence,
-  binomial counts and stable readout within a job are assumptions.
-  - A two-hour QPU experiment that checks them (Experiment P: 14 jobs,
-    ≤ 320,000 shots) is preregistered and has been rehearsed on fake
-    backends. It submits jobs, so it is the separately authorized kind of
-    experiment, not part of the read-only observation study.
-  - An account holder can run `python experiments/run_v03.py pilot` (dry
-    run, sends nothing), then add `--submit`. It needs `QISKIT_IBM_TOKEN`
-    and `QISKIT_IBM_INSTANCE` in the environment.
+- **Real hardware.** The only real-device data is one two-hour pilot
+  (Experiment P: 14 jobs on `ibm_fez`, 5 qubits, 2026-10-13/14).
+  - **Binomial constant-rate counts:** failed (P.C1). Readout error
+    fluctuated between batches beyond binomial noise in 6 of 10 probe series.
+    The drift channel needs a fluctuation model or a larger effect gate
+    before deployment on that device.
+  - **Readout stability within a job:** held (P.C2, 0 of 10 sweeps).
+  - **Batch independence:** not tested separately.
+  - **Generality:** one device and two hours say nothing about other devices
+    or longer periods.
+  - **Running it yourself:** `python tools/ibm_connect.py` saves an IBM
+    Quantum account. `python experiments/run_v03.py pilot` is a dry run that
+    sends nothing; adding `--submit` runs it. It submits jobs, so it is the
+    separately authorized kind of experiment, not part of the read-only
+    observation study.
   - See [`docs/HARDWARE_VALIDATION.md`](docs/HARDWARE_VALIDATION.md).
 - **Other noise processes.** Leakage, coherent errors, crosstalk, 1/f
   dephasing and correlated multi-qubit errors are not simulated

@@ -1,7 +1,8 @@
-# IBM Quantum validation pathway (not yet executed)
+# IBM Quantum validation pathway
 
-No real-device job has been run for this project. Everything in `results/`
-is simulation. This document covers:
+One real-device experiment has been run for this project: Experiment P, 14
+jobs on `ibm_fez` on 2026-10-13/14 (`results/V03_SUMMARY.md` §1). Everything
+else in `results/` is simulation. This document covers:
 
 - an invitation to collaborate on a proposed 30-day, **read-only**
   observation study, which submits no jobs;
@@ -9,8 +10,8 @@ is simulation. This document covers:
 - **Experiment P**, a short QPU experiment preregistered with the v0.3 study
   (`experiments/V03_PREREGISTRATION.md` §5, where it is called the hardware
   pilot). It submits 14 jobs, so it is an active, separately authorized
-  experiment, not part of the read-only observation study. It is ready to
-  run and has not been run;
+  experiment, not part of the read-only observation study. It has run once:
+  P.C2 passed and P.C1 failed;
 - the proposed two-phase study, and what such studies could and could not
   establish.
 
@@ -58,7 +59,7 @@ Tested in `tests/test_hardware.py` and `tests/test_pilot.py` with
 `qiskit_ibm_runtime.fake_provider` backends (local simulation, no account,
 no network).
 
-## Experiment P: a short QPU experiment (preregistered, separately authorized, not run)
+## Experiment P: a short QPU experiment (preregistered, separately authorized, run once)
 
 Experiment P answers one question: do the assumptions the monitor rests on
 hold on a real device over about two hours?
@@ -125,7 +126,20 @@ intervals (consistency only); the v0.3 engine's alerts on the probe series;
 which execution timestamps the service reports; whether calibration history
 (`properties(datetime=…)`) is available.
 
-## Verified behaviour (qiskit-ibm-runtime 0.50.0, fake backends)
+**Result** (`V03_P_pilot-20261013T234830-220ff3`):
+
+- **Run:** `ibm_fez`, qubits 54, 108, 127, 59 and 87; 130 s of QPU time,
+  against an estimate of 144 s.
+- **P.C1 failed:** 6 of 10 probe series rejected one constant rate, with
+  G/dof up to 12.6.
+- **P.C2 passed:** 0 of 10 sweeps had disagreeing references.
+
+Details are in `results/V03_SUMMARY.md` §1. Two earlier launches were
+interrupted before completing; they are listed, unused, in
+`results/V03_DEVIATIONS.md`. A long run should therefore be started in a
+process that nothing else will stop: the record is written only at the end.
+
+## Verified behaviour (qiskit-ibm-runtime 0.50.0, fake backends and the live service)
 
 - `backend.properties().qubit_property(q)` returns each value **with its own
   calibration datetime** (T1, T2, readout error, `prob_meas1_prep0`,
@@ -139,9 +153,11 @@ which execution timestamps the service reports; whether calibration history
   `FakeBrisbane` 8-dt, `FakeTorino` 1-dt.
 - Fake backends are snapshots: their "calibration" never changes, and
   `properties(datetime=...)` is not supported on them.
-- Live-service behaviour (calibration history, `job.metrics()` timestamp
-  fields, plan quotas) is **unverified**: no IBM account was used.
-  Experiment P records it.
+- Live service (IBM Quantum Platform Open Plan, `ibm_fez`, 2026-10-13/14):
+  - `properties(datetime=…)` returned calibration history.
+  - `job.metrics()` reported execution timestamps for all 14 jobs.
+  - The Open Plan's 600 s of QPU time is a rolling 28-day window, as reported
+    by `service.usage()` (`usage_period`), not a calendar cycle.
 
 ## Proposed study: two distinct phases (neither executed)
 
