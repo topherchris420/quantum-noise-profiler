@@ -7,3 +7,10 @@ __pycache__/
 .qnp/
 pilot-checkpoints/
 *.pilot-checkpoint.json
+# Generated local evidence exports (the documented preview lives in docs/).
+qnp-evidence.html
+qnp-evidence.json
+qnp-qubit-*.csv
+
+# Local Python release artifacts.
+dist/

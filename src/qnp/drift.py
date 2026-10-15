@@ -91,13 +91,15 @@ class ErrorBudget:
     def __post_init__(self) -> None:
         if not 0 < self.alpha_session < 1:
             raise ValueError("alpha_session must be in (0, 1)")
-        if set(self.shares) != set(CHANNELS) or any(v < 0 for v in self.shares.values()):
-            raise ValueError(f"shares must be non-negative and cover exactly {CHANNELS}")
+        if set(self.shares) != set(CHANNELS) or any(
+            isinstance(v, bool) or not math.isfinite(v) or v < 0 for v in self.shares.values()
+        ):
+            raise ValueError(f"shares must be finite, non-negative and cover exactly {CHANNELS}")
         if abs(sum(self.shares.values()) - 1.0) > 1e-9:
             raise ValueError("shares must sum to 1")
         for name in ("n_qubits", "n_metrics", "n_provenances"):
             v = getattr(self, name)
-            if v is not None and (not isinstance(v, int) or v < 1):
+            if v is not None and (isinstance(v, bool) or not isinstance(v, int) or v < 1):
                 raise ValueError(f"{name} must be a positive int or None")
 
     def alpha_series(self, channel: str, n_qubits: int, n_metrics: int, n_provenances: int = 1) -> float:
@@ -453,6 +455,7 @@ class GroupReport:
     threshold: dict[str, Any]
     forecast: dict[str, Any]
     alerts: list[Alert]
+    budget_status: str = "within_declared_family"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -467,6 +470,7 @@ class GroupReport:
             "threshold": self.threshold,
             "forecast": self.forecast,
             "alerts": [a.to_dict() for a in self.alerts],
+            "budget_status": self.budget_status,
         }
 
 

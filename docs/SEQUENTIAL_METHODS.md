@@ -144,7 +144,14 @@ The family size $(n_q, n_m, n_p)$ is declared in `ErrorBudget` or frozen at
 the first `check()`. Every recorded experiment monitored one provenance
 ($n_p = 1$). If it later grows, `Profiler.family["exceeded"]` is set and
 the budget statement is void (the thresholds were computed for a smaller
-family).
+family). Every affected channel and alert then carries
+`guarantee="unavailable:family_exceeded"`; its original channel label remains
+in `nominal_guarantee`. Alerts are retained as descriptive evidence, with an
+explicit warning in their text. `Profiler.session_report()` exports the family,
+notices and budget status alongside strict-JSON diagnostics. Staying within
+the declared family does not establish that the null assumptions hold on a
+device. An inspection with no usable estimates does not freeze an inferred
+family.
 
 Under the union bound, if every series' null holds, P(any alert in the
 session) ≤ $\alpha_{\text{session}}$ *provided each channel's guarantee holds

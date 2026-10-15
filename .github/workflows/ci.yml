@@ -77,6 +77,11 @@ jobs:
           [d.update(int(k), 2000) for k in np.random.default_rng(0).binomial(2000, 0.08, 10)]
           assert d.log_e[-1] > np.log(20), d.log_e
           print('qnp', qnp.__version__, 'core install OK')"
+      - name: installed CLI and offline explorer (core dependencies only)
+        run: |
+          cd /tmp
+          /tmp/clean/bin/qnp demo > qnp-demo.json
+          /tmp/clean/bin/qnp report --results-dir "$GITHUB_WORKSPACE/results" --output qnp-evidence.html
       - uses: actions/upload-artifact@v4
         with: {name: dist, path: dist/}
 

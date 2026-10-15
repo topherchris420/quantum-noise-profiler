@@ -18,6 +18,12 @@ pip install -e ".[dev]"
 
 ## 2. Check the recorded evidence (seconds; no simulation)
 
+For a visual inspection with core dependencies only, run
+`python -m qnp report` and open `qnp-evidence.html`. The exporter checks its
+source hashes and recomputes probe rates/homogeneity from counts. It displays
+the other summaries as recorded; the commands below perform the full check.
+See the [evidence explorer guide](EVIDENCE_EXPLORER.md).
+
 ```bash
 python tools/verify_results.py      # SHA-256 manifest + recompute every summary from raw data
 python tools/check_provenance.py    # schema, clean source tree, seed ranges, calibration order

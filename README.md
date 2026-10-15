@@ -1,311 +1,284 @@
-# Quantum Noise Profiler (`qnp`)
+# Quantum Noise Profiler
 
-**Uncertainty-aware monitoring of qubit noise that says how it knows each
-number, controls how often it raises false alarms over a whole monitoring
-session, and refuses to report estimates its data or model cannot support.**
+### Every warning needs evidence.
 
-> **Status: v0.3 research prototype (`0.3.0.dev0`).** The method results
-> below come from preregistered *simulations* (Qiskit Aer, Cirq, numpy). The
-> only hardware data is a short preregistered QPU experiment (Experiment P,
-> 14 jobs on IBM `ibm_fez`, two hours). It checks two of the method's
-> assumptions. Readout was stable within a job (P.C2 passed), but readout
-> error fluctuated between batches by more than binomial noise (P.C1 failed,
-> 6 of 10 series). See [What is not known](#what-is-not-known) and
-> [`results/V03_SUMMARY.md`](results/V03_SUMMARY.md).
+**An open research instrument for tracking qubit noise, inspecting uncertainty,
+and knowing when the data cannot support an answer.**
 
-## First physical-QPU experiment: what the assumptions got wrong
+Quantum Noise Profiler (`qnp`) separates vendor calibration records, estimates
+from ordinary workloads, and dedicated measurements. Its monitoring engine
+reports the evidence behind each warning. Its offline explorer lets you inspect
+the first physical-QPU experiment, down to the recorded shot counts.
 
-**IBM `ibm_fez` · October 13–14, 2026 UTC · 5 qubits · 14 jobs · 296,000 shots · 130 seconds QPU time.** A preregistered two-hour pilot tested *assumptions*, not whether the alerts predict real hardware failures.
+[Explore the evidence](#explore-the-real-hardware-data) · [Use the Python API](#use-the-monitor) · [Results and limits](#what-the-evidence-says) · [Reproduce](#reproduce-and-verify)
 
-| Assumption check | Real-device result | Status |
+> **v0.3 research prototype · hardware warning accuracy is not established.**
+> The simulation study passed 40/40 preregistered criteria. The first real-device
+> pilot challenged the constant-rate assumption in 6/10 readout series.
+> Both findings are part of the result.
+
+![The offline evidence explorer showing the recorded IBM Fez pilot, selectable qubits, readout traces and original assumption checks](docs/assets/evidence-explorer.png)
+
+## Explore the real hardware data
+
+No IBM account, API key, quantum SDK or web server is needed. From a local clone:
+
+```bash
+git clone https://github.com/topherchris420/quantum-noise-profiler.git
+cd quantum-noise-profiler
+python -m pip install -e .
+python -m qnp report
+```
+
+Open **`qnp-evidence.html`** in your browser. The report is self-contained and
+works offline. You can also download the [generated HTML snapshot](docs/evidence-explorer.html)
+and open it locally; GitHub's file viewer does not execute HTML.
+
+The explorer lets you:
+
+- **Inspect a qubit:** compare both readout directions, step through 12 recorded
+  batches, and see the underlying errors and shots. A shared vertical scale
+  makes comparisons between qubits honest.
+- **Interpret a warning:** locate recorded alerts without treating them as
+  verified hardware failures. Historical vendor values are optional references.
+- **See where the model abstained:** inspect every T1 fit, conditional interval,
+  withheld estimate and reason code.
+- **Audit the evidence:** review the original assumption checks, expand every
+  simulation criterion, and export the plotted traces as CSV or the evidence
+  bundle as JSON.
+
+Before rendering, the exporter checks the displayed run entries and raw files
+against `MANIFEST.sha256`, then reproduces probe rates and homogeneity statistics
+from raw counts. It refuses missing or mismatched evidence and excludes fake,
+rehearsal and smoke runs from hardware results. T1, alert and simulation summaries
+are shown as recorded; the separate verifier recomputes those too.
+
+```bash
+python -m qnp report --results-dir results --output my-report.html
+python -m qnp demo       # deterministic synthetic example; prints strict JSON
+qnp --help              # equivalent installed command
+```
+
+Reports never overwrite `results/`. Use `--force` to replace an existing HTML
+export. [Explorer guide and verification scope →](docs/EVIDENCE_EXPLORER.md)
+
+## What the evidence says
+
+### A physical device challenged the model
+
+**IBM `ibm_fez` · October 13–14, 2026 UTC · 5 qubits · 14 jobs · 296,000 shots.**
+Experiment P was a preregistered two-hour assumption check, not a test of whether
+alerts predict real hardware failures.
+
+| Registered check | Recorded result | Interpretation |
 |---|---|---|
-| P.C1: each readout-probe series has a constant binomial error rate across 12 batches | 6 of 10 series reject | **Not supported on this device** |
-| P.C2: interleaved ground references detect readout drift within T1 sweeps | 0 of 10 sweeps reject | **No within-job drift detected** |
+| **P.C1:** a constant binomial error rate across 12 probe batches | 6/10 series reject; criterion failed | The constant-rate model did not describe these series adequately |
+| **P.C2:** interleaved references detect readout drift within T1 sweeps | 0/10 sweeps reject; criterion passed | No within-job drift detected by this check; stability is not proved |
+| T1 model checks | 7 estimates reported; 3 withheld | A number is withheld when coverage or fit diagnostics cannot support it |
+| Recorded drift alerts | Five, on qubit 108 | Their true/false status is unknown without independent reference data |
 
-On qubit **108**, `p(0|1)` rose from around 1% to nearly 3%, then partially recovered. Five drift alerts followed. **We cannot label them true or false warnings without independent reference data.** The v0.3 simulations do not establish detector validity on the real device.
+On qubit 108, `p(0|1)` rose from about 1% to nearly 3%, then partially recovered.
+The explorer makes that excursion visible without assigning it an unverified
+physical cause. Batch independence, generality across devices, and operational
+value on hardware remain untested.
 
-[**Read the hardware addendum**](docs/report/HARDWARE_ADDENDUM.md) · [Raw-data-backed results](results/V03_SUMMARY.md) · [Future holdout-study plan](experiments/P04_FOLLOWUP_PLAN.md)
+[Hardware addendum](docs/report/HARDWARE_ADDENDUM.md) · [Complete v0.3 results](results/V03_SUMMARY.md) · [Proposed independent follow-up](experiments/P04_FOLLOWUP_PLAN.md)
 
-## Technical report
+### Two simulation studies, including their failures
 
-**Warnings a qubit monitor can stand behind** — an assessment of Quantum Noise Profiler (`qnp`) v0.3.
-Christopher Woodyard, Vers3Dynamics · October 2026 · 10 pages. **Historical simulation-only report written before Experiment P**; for the real-QPU findings, read the [hardware addendum](docs/report/HARDWARE_ADDENDUM.md).
+| Study | Result | What it establishes |
+|---|---|---|
+| **v0.3 follow-up** | 40/40 preregistered criteria passed | Improvements under the specified simulated conditions |
+| **v0.2 study** | 53/62 preregistered checks passed | Useful improvements and explicit remaining failure modes |
+| **Physical pilot** | P.C1 failed; P.C2 passed | Evidence about assumptions on one device over two hours |
 
-<p>
-  <a href="https://github.com/topherchris420/quantum-noise-profiler/blob/main/docs/report/qnp-technical-report.pdf"><img src="https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p01.png" width="49%" alt="Report cover"></a>
-  <a href="https://github.com/topherchris420/quantum-noise-profiler/blob/main/docs/report/qnp-technical-report.pdf"><img src="https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p02.png" width="49%" alt="Summary for decision-makers"></a>
-</p>
+Selected v0.3 simulation results:
 
-**[Read the full report (PDF)](https://github.com/topherchris420/quantum-noise-profiler/blob/main/docs/report/qnp-technical-report.pdf)**
+| Question | v0.2 design | v0.3 design |
+|---|---:|---:|
+| Runs with a false alert after adding a 2 µs idle to an unchanged device | 1.00 | 0.02 |
+| Runs with a false alert after adding two-qubit gates | 0.43 | 0.05 |
+| T1 reported confidently wrong under slow readout drift (D11 conditions) | 0.255 | 0.005 |
+| T1 reported confidently wrong under linear readout drift of ±1.5% | 0.370 | 0.000 |
+
+The false-alert rows use the **empirically calibrated** configuration, with 100
+simulated runs per scenario. T1 rows use 200 fits per scenario and design.
+These are observed simulation outcomes, not hardware guarantees.
+
+In the closed-loop simulation, warnings plus daily calibration reduced jobs
+run above 5% readout error from 13–20% to at most 0.31%. This uses illustrative
+degradation rates and assumes recalibration on demand. Warnings did not
+consistently reduce calibration overhead, and a calibrated CUSUM baseline
+performed comparably. Cloud-user interventions such as remapping qubits have
+not been validated.
+
+![Simulation: failed jobs against calibrations per qubit-day](paper/figures/fig10_operational_frontier.png)
 
 <details>
-<summary>All pages</summary>
+<summary>Earlier results and unresolved limitations</summary>
 
-![Page 1](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p01.png)
-![Page 2](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p02.png)
-![Page 3](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p03.png)
-![Page 4](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p04.png)
-![Page 5](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p05.png)
-![Page 6](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p06.png)
-![Page 7](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p07.png)
-![Page 8](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p08.png)
-![Page 9](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p09.png)
-![Page 10](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/docs/report/qnp-report-p10.png)
+The v0.2 anytime-valid configuration raised an alert in at most 1% of stable
+sessions across five simulated conditions. That is an observed rate, **not a
+universal 1% guarantee**. The declared session budget is `alpha_session = 0.10`,
+and each channel has its own null assumptions.
+
+The 253-minute median warning lead came from a separate **calibrated**
+configuration with empirical error control. At matched false-alert rates, it
+outperformed a Shewhart baseline (223 minutes) and CUSUM (213 minutes) in that
+scenario. Forecast coverage was measured across correlated forecasts within
+runs, not independent hardware trials.
+
+Failures remain instructive:
+
+- A 10% step was detected within five batches in only 0.09 of runs, below the
+  original 0.80 target. CUSUM remained better at detecting the smallest steps
+  within 24 batches (0.64 versus 0.52).
+- Stationary 10% fluctuations triggered alerts in about half of runs in an
+  exploratory condition. The hardware pilot reinforces the need to model
+  excess variation before deployment.
+- Simulations omit leakage, coherent errors, crosstalk, 1/f dephasing and
+  correlated multi-qubit errors. The tested monitoring families were small;
+  the union-bound budget becomes conservative at scale.
+- The original v0.1 engine raised false alarms in 62% of stable simulated
+  sessions and reported confident but wrong T1 values under misspecification.
+  It remains available as a frozen comparator.
+
+[Full v0.2 results](results/V02_SUMMARY.md) · [v0.1 audit](docs/V01_AUDIT.md) · [E2 correction](results/E2_CORRECTION.md)
 
 </details>
 
-## Independent validation: collaborators welcome
+## Use the monitor
 
-We are inviting independent replication and exploratory discussions about a
-**proposed 30-day, read-only observation study** using existing qubit calibration
-records or authorized exports. The observation-only phase would **not** submit
-quantum jobs, modify device settings, access someone else's provider account, or
-claim ground-truth error detection. It can examine data quality, repeatability,
-timestamp fidelity, and agreement with recorded calibration changes. Measuring
-detection accuracy requires a separately defined independent reference.
+The core install requires Python 3.10+, NumPy and SciPy. Quantum providers are
+optional extras: `.[qiskit]`, `.[cirq]`, `.[ibm]`, or `.[dev]` for the complete
+development environment.
 
-A later **optional, separately approved** phase could run dedicated T1/T2 and
-fixed-context probe circuits under explicit provider authorization and
-shot/time budgets. Neither proposed longer-term phase has started. The separately authorized short **Experiment P has already run**; see the hardware addendum.
+```python
+import json
+from datetime import datetime, timezone
 
-Researchers at national laboratories, NIST, universities, and other quantum
-facilities can review the [proposed study and collaboration checklist](docs/HARDWARE_VALIDATION.md).
-To discuss feasibility, [open a GitHub issue](https://github.com/topherchris420/quantum-noise-profiler/issues/new)
-without including credentials, restricted records, or confidential data.
-No institutional partnership or endorsement is implied.
+from qnp import DriftConfig, ErrorBudget, Profiler
+from qnp.measured import estimate_readout
 
-## Why it matters
+# Declare the monitoring family before inspecting data.
+profiler = Profiler(config=DriftConfig(
+    budget=ErrorBudget(n_qubits=5, n_metrics=1, n_provenances=1)
+))
 
-Error rates and coherence times of real qubits drift between calibrations.
-A monitor that watches them continuously is useful only if its warnings can
-be trusted: checked after every batch, a monitor that uses a fixed
-per-check probability bar will eventually raise a false alarm in almost every
-session. The v0.1 prototype of this project did exactly that
-(62% of stable sessions alerted), and its T1 fits reported confident but
-wrong values when the decay was not a single exponential (72% false
-confidence). v0.2 is the attempt to fix both, measured against
-preregistered criteria. v0.3 fixes two of v0.2's failures, the
-absolute-threshold misfire and drift-blind T1 fits. It also tests whether
-earlier warnings reduce failed jobs or calibration overhead.
+# Illustrative input: replace with counts and acquisition timestamps from your probes.
+profiler.add(estimate_readout(
+    qubit=0, prepared=0, errors=42, shots=4000,
+    timestamp=datetime(2026, 10, 1, tzinfo=timezone.utc),
+    source="illustrative-counts",
+))
 
-## What the profiler does
+# Includes evidence, withheld forecasts, notices, latest estimates and budget status.
+session = profiler.session_report()
+print(json.dumps(session, indent=2, allow_nan=False))
+```
 
-| | |
+A single batch is not enough to establish a drift trend. Missing evidence is
+reported explicitly. `profiler.check()` returns alerts, `profiler.report()`
+returns per-group diagnostics, and `profiler.snapshot()` includes withheld
+estimates as well as successful ones.
+
+| Capability | Behavior |
 |---|---|
-| **Provenance** | every estimate is *observed* (vendor calibration), *inferred* (from ordinary jobs), or *measured* (dedicated T1/T2 sequences); series are never mixed |
-| **Sequential error control** | anytime-valid e-processes with an explicit session error budget across time, qubits, metrics and contexts; each alert states its e-value, threshold and the kind of guarantee behind it |
-| **Meaningful deterioration** | an alert needs statistical evidence *and* an effect of at least 10% *and* persistence |
-| **Forecasts that can abstain** | `VALID_FORECAST`, `INSUFFICIENT_EVIDENCE`, `MODEL_MISSPECIFICATION`, `INSUFFICIENT_HISTORY`, `UNSTABLE_TREND`, `UNSUPPORTED_HORIZON`, with machine-readable reasons; predictive (not just parameter) intervals for the threshold-crossing time |
-| **Readout probes** | two prepare-and-measure circuits added to a job become MEASURED `readout_error` series (`p(1\|0)`, `p(0\|1)`); the absolute recalibration threshold applies only to them, so a workload change cannot trip it. Workload error rates are monitored for relative change only |
-| **Model checking** | a T1/T2 value is reported only if delay coverage, deviance, posterior-predictive and residual checks pass; otherwise `insufficient_evidence` or `model_misspecification` |
-| **Drift-robust sweeps** | T1/T2 delays are acquired in random order with 5 interleaved ground references; readout drift during the sweep is reported (`READOUT_DRIFT`) instead of bending the estimate |
-| **Evidence integrity** | append-only run log, SHA-256 manifest, every summary recomputable from raw data, provenance checks in CI |
+| **Provenance** | Keeps OBSERVED vendor values, INFERRED workload estimates and MEASURED probes in separate series |
+| **Sequential monitoring** | Reports channel-specific evidence, thresholds and guarantee types under an explicit session budget |
+| **Meaningful change** | Drift warnings require evidence, an effect-size gate and persistence |
+| **Workload-aware thresholds** | Absolute readout thresholds apply to readout probes; workload-dependent effective flip rates get relative-change monitoring by default |
+| **Model checks** | T1/T2 estimates are withheld when delay coverage or fit diagnostics fail |
+| **Forecast abstention** | Gives machine-readable reasons for insufficient history, unsupported trends, misspecification and unsupported horizons |
+| **Session export** | `session_report()` produces strict JSON, preserves missing evidence and exposes budget validity |
 
-## What has been shown (simulation only)
+**Budget status is not hardware validation.** If the observed monitoring family
+exceeds its declared size, reports and every alert carry
+`unavailable:family_exceeded`; nominal guarantees remain separately available
+for inspection. Empty or entirely withheld data do not freeze the inferred
+family. Within-budget status says only that the allocation was respected.
 
-Two preregistered studies. Each used disjoint seeds for development,
-calibration and testing, and ran every method on identical data. Failures
-are listed, not hidden.
-
-### v0.3 follow-up: 40 of 40 preregistered criteria passed
-
-Details: [`results/V03_SUMMARY.md`](results/V03_SUMMARY.md).
-
-| Question | v0.2 design | v0.3 design |
-|---|---|---|
-| Runs with a false alert after adding a 2 µs idle before measurement (hardware unchanged) | 1.00 | 0.02 |
-| ... after adding two-qubit gates | 0.43 | 0.05 |
-| T1 reported confidently wrong under slow readout drift (v0.2's D11 conditions) | 0.255 | 0.005 |
-| ... under linear readout drift of ±1.5% | 0.370 | 0.000 |
-| Valid T1 fits rejected (the price of the drift check) | 1.5–2% | 2.5–4% |
-
-The false-alert rows use the calibrated configuration (empirical, not
-anytime-valid, false-alarm control), 100 simulated runs per scenario; T1
-rows, 200 simulated fits per scenario and design.
-
-**Do earlier warnings help?** A closed-loop simulation tested this, with
-illustrative degradation rates and qubits degrading about once per day:
-
-- **Failed jobs:** with daily calibration alone, 13–20% of jobs ran on a
-  qubit above 5% readout error. Recalibrating on v0.3 warnings as well cut
-  this to at most 0.31%, 4.7–5.4 points below a fixed schedule of equal
-  cost.
-- **Calibration overhead:** warnings alone used as many calibrations as
-  the daily schedule, or about 0.5 more per qubit-day. They used fewer only
-  when degradation was rare or absent.
-- **What did not hold up:** a calibrated CUSUM on the same probes did as
-  well as the v0.3 engine.
-
-![Failed jobs against calibrations per qubit-day](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/paper/figures/fig10_operational_frontier.png)
-
-### v0.2 study: 53 of 62 preregistered checks passed
-
-Details: [`results/V02_SUMMARY.md`](results/V02_SUMMARY.md).
-
-| Question | v0.1 | v0.2 |
-|---|---|---|
-| Stable 8 h sessions with any false alert (qubit at 4.5%, threshold 5%) | 0.70 | 0.010 anytime-valid · 0.068 calibrated |
-| Stable 24 h sessions with any false alert | 0.77 | 0.005 · 0.070 |
-| Warning lead before a drifting qubit crosses 5% (median, matched false-alert rate) | 203 min (re-thresholded) | 253 min **calibrated** (Shewhart 223, CUSUM 213) |
-| ×1.2 step detected within 6 batches (matched false-alert rate) | 0.20 | 0.73 (CUSUM 0.48) |
-| T1 reported confidently wrong when T1 fluctuates | 0.72 | 0.00 |
-| T1 withheld for a two-component decay | 0.00 | 1.00 |
-| 80% forecast intervals that contained the true crossing time | – | 0.800 |
-
-**Interpretation matters:** the <= 1% stable-session false-alert figures were
-*observed in five simulated conditions* using the **uncalibrated,
-anytime-valid** thresholds. They are not a universal 1% false-alarm guarantee.
-The 253-minute median warning result used a **separately calibrated**
-configuration with *empirical*, not anytime-valid, false-alarm control.
-The declared session error budget is `alpha_session = 0.10` and its coverage
-depends on channel-specific null assumptions; see
-[Sequential methods](docs/SEQUENTIAL_METHODS.md). Forecast coverage was
-measured across correlated forecasts within runs, not independent hardware
-trials. Nothing here establishes performance on real devices.
-
-![False alerts accumulate under v0.1 and stay bounded under v0.2](https://raw.githubusercontent.com/topherchris420/quantum-noise-profiler/main/paper/figures/fig3_false_alert_accumulation.png)
-
-**Where v0.2 failed (preregistered criteria):**
-
-- A 10% step is not detected within 5 batches by any method at this shot
-  budget (0.09; the original project claim was 0.80). *Unchanged in v0.3.*
-- Slowly drifting readout offset during a T1 sweep passes the model checks
-  in 74% of fits and yields a wrong T1 in 28.5%. *Fixed in simulation by
-  the v0.3 sweep design (0.5%).*
-- Circuits with idle time or extra two-qubit gates trigger the absolute 5%
-  threshold on unchanged hardware, because their effective error rate really
-  is above 5%. The threshold is applied to a workload-dependent quantity.
-  *Fixed in simulation by v0.3 readout probes (2–5%, all from the drift
-  channel).*
-- Stationary 10% fluctuations of an otherwise stable device alarm in about
-  half of runs (exploratory condition). *Unresolved.* v0.3's operational
-  simulation includes a ±5% fluctuation. In it, 0.27–0.44 calibrations per
-  qubit-day were triggered without real degradation.
-
-**Where conventional methods remain better:** a calibrated CUSUM detects the
-smallest (10%) steps more often within 24 batches (0.64 vs 0.52).
-
-## What is not known
-
-- **Real hardware.** The only real-device data is one two-hour pilot
-  (Experiment P: 14 jobs on `ibm_fez`, 5 qubits, 2026-10-13/14).
-  - **Binomial constant-rate counts:** failed (P.C1). Readout error
-    fluctuated between batches beyond binomial noise in 6 of 10 probe series.
-    The drift channel needs a fluctuation model or a larger effect gate
-    before deployment on that device.
-  - **Readout stability within a job:** held (P.C2, 0 of 10 sweeps).
-  - **Batch independence:** not tested separately.
-  - **Generality:** one device and two hours say nothing about other devices
-    or longer periods.
-  - **Running it yourself:** `python tools/ibm_connect.py` saves an IBM
-    Quantum account. `python experiments/run_v03.py pilot` is a dry run that
-    sends nothing; adding `--submit` runs it. It submits jobs, so it is the
-    separately authorized kind of experiment, not part of the read-only
-    observation study.
-  - **Interrupted QPU jobs:** future runs save per-job IDs and results in a local private checkpoint directory; no automatic resume or stitching. See [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md).
-  - See [`docs/HARDWARE_VALIDATION.md`](docs/HARDWARE_VALIDATION.md).
-- **Other noise processes.** Leakage, coherent errors, crosstalk, 1/f
-  dephasing and correlated multi-qubit errors are not simulated
-  ([`src/qnp/sim.py`](src/qnp/sim.py) docstring).
-- **Operational value on hardware.** The v0.3 result is a simulation with
-  chosen degradation rates. It assumes recalibration on demand, which cloud
-  users cannot do. Their intervention, avoiding or remapping a degraded
-  qubit, has not been tested.
-- **Scale.** Families of 2 qubits were tested; the union-bound budget grows
-  conservative with many qubits and metrics.
-
-## Quick start
+<details>
+<summary>Qiskit, Cirq and drift-robust measurements</summary>
 
 ```bash
-pip install -e ".[qiskit]"          # or ".[dev]" for tests, Cirq, IBM fake backends, figures
+python -m pip install -e ".[qiskit]"
 python examples/demo_qiskit_sim.py
 ```
 
-```python
-from qnp import DriftConfig, ErrorBudget, Profiler
-from qnp.alerts import format_text
-from qnp.measured import readout_probe_circuits
+- `profiler.ingest_qiskit(isa_circuits, sampler_job.result(), timestamp=ts)`
+  routes structurally recognized readout probes to MEASURED `readout_error`
+  and ordinary workload results to INFERRED effective flip rates.
+- Pass the **executed ISA circuits** so indices are physical qubits.
+- `qnp.measured.readout_probe_circuits(...)` prepares the two readout directions.
+  When monitoring probes and workload rates together, declare `n_metrics=2`.
+- `profiler.ingest_cirq(...)` provides the corresponding Cirq path.
+- T1/T2 sweeps use randomized delay order and interleaved ground references.
+  `READOUT_DRIFT` causes model rejection instead of silently bending the estimate.
+- `readout_probes="off", context_mode="bucket"` restores v0.2 ingestion;
+  `DriftConfig(thresholds=dict(V02_THRESHOLDS))` restores its threshold choices.
+- `DriftConfig(log_e_offset=2.0)` is the study's calibrated configuration.
+  Its `+calibrated` guarantees are empirical, not anytime-valid.
+- `LegacyDriftConfig()` retains the frozen v0.1 rules.
 
-probes = readout_probe_circuits(physical_qubits, num_qubits=backend.num_qubits)  # |0..0> and |1..1>, measured
-# run the probes in the same job as the transpiled workload, without a layout change
-prof = Profiler(config=DriftConfig(budget=ErrorBudget(alpha_session=0.10, n_qubits=5, n_metrics=2)))
-prof.ingest_qiskit([*isa_workload, *probes], sampler_job.result(), timestamp=ts)
-# probes -> MEASURED readout_error (threshold applies); workload -> INFERRED effective flip (relative change only)
-alerts = prof.check()               # alerts carry e-value, threshold, alpha and guarantee type
-print(format_text(alerts))
-reports = prof.report()             # per-group evidence, gates and forecast statuses with reasons
-```
+</details>
 
-- Pass the executed (ISA) circuits, so qubit indices are physical.
-- Readout probes and workload series are two metrics (`n_metrics=2`).
-  Without probes, no absolute threshold applies to anything ingested from
-  jobs. `readout_probes="off", context_mode="bucket"` restores the v0.2
-  ingestion.
-- Declare the monitoring family up front (`ErrorBudget(n_qubits, n_metrics, n_provenances)`;
-  monitoring one quantity through several provenances counts each as a test);
-  if it grows later, `prof.family["exceeded"]` is set and the budget no
-  longer holds.
-- `DriftConfig(log_e_offset=2.0)` is the empirically calibrated configuration
-  of the study. Its alerts are labelled `+calibrated`, and its guarantee is
-  empirical, not anytime-valid.
-- `LegacyDriftConfig()` reproduces the frozen v0.1 rules.
-- T1/T2: `qnp.measured.run_t1(...)` returns `ok`, `insufficient_evidence` or
-  `model_misspecification`, with reason codes in `estimate.diagnostics`.
-  - Sweeps use the drift-robust design by default.
-  - `plan=decay_sweep_plan(delays, **V02_SWEEP)` gives the v0.2 sequential
-    design.
+## What the guarantee means
 
-## How the guarantees work, in one paragraph
+The default session error budget, `alpha_session = 0.10`, is allocated across
+channels, qubits, metrics and provenances. Under the appropriate e-process null
+assumptions, Ville's inequality bounds the probability of crossing the
+threshold at any monitoring time.
 
-The monitor uses sequential e-values and declares a session error budget
-`alpha_session = 0.10`, split among channels and the fixed monitoring
-family (qubits, metrics, provenances). **Where the e-process null assumptions
-hold**, Ville's inequality bounds the chance that a test crosses its
-threshold at *any* monitoring time. The binomial threshold channel has an
-exact frequentist guarantee under its model; the binomial drift channel has
-a **Bayesian-marginal** guarantee, with fixed-rate false alerts evaluated by
-simulation. Gaussian approximations and plug-in uncertainty estimates carry
-their own limitations. The faster calibrated configuration **does not retain
-the anytime-valid guarantee**. Each alert reports its guarantee type, and
-the pilot tested assumptions but did **not** validate monitoring accuracy or false-alert guarantees on hardware. Details:
-[`docs/SEQUENTIAL_METHODS.md`](docs/SEQUENTIAL_METHODS.md).
+That statement is conditional. The binomial threshold channel has an exact
+frequentist guarantee under its model; the binomial drift channel has a
+**Bayesian-marginal** guarantee. Gaussian approximations and plug-in uncertainty
+have separate limits. The faster empirically calibrated configuration does
+not retain the anytime-valid guarantee. Experiment P did not validate those
+guarantees on hardware.
+
+[Channel-by-channel derivation and assumptions →](docs/SEQUENTIAL_METHODS.md)
 
 ## Reproduce and verify
 
 ```bash
-python tools/verify_results.py    # hashes + recompute every reported number from raw data
-python tools/pilot_diagnostics.py # exploratory diagnostics of the recorded QPU pilot
-python tools/check_provenance.py  # schema, clean source tree, preregistered seed blocks
-python experiments/run_v03.py H   # re-run an experiment (appends; never overwrites)
-python tools/make_figures.py && python tools/make_v03_figures.py
+python -m pip install -e ".[dev]"
+python tools/verify_results.py       # hashes + all summaries recomputed from raw data
+python tools/check_provenance.py     # schema, source record and preregistered seed blocks
+python tools/pilot_diagnostics.py    # exploratory description of the recorded pilot
+pytest -q
 ```
 
-See [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md).
+Re-running studies appends new entries; it never rewrites old outcomes.
+`python experiments/run_v03.py pilot` is a **dry run**. Hardware submission is
+an explicit separate workflow; the explorer never invokes it. See the
+[hardware guide](docs/HARDWARE_VALIDATION.md) for authorization, budgets and
+private per-job checkpoints.
 
-## Documentation
+[Reproduction guide](docs/REPRODUCIBILITY.md) · [v0.3 preregistration](experiments/V03_PREREGISTRATION.md) · [v0.2 preregistration](experiments/V02_PREREGISTRATION.md)
 
-| Document | Contents |
+## Research record
+
+| Read | Purpose |
 |---|---|
-| [`docs/report/qnp-technical-report.pdf`](docs/report/qnp-technical-report.pdf) | Original 10-page simulation-only report, preserved as written |
-| [`docs/report/HARDWARE_ADDENDUM.md`](docs/report/HARDWARE_ADDENDUM.md) | Accessible, text-based account of the real-device pilot and its negative assumption check |
-| [`experiments/P04_FOLLOWUP_PLAN.md`](experiments/P04_FOLLOWUP_PLAN.md) | Unexecuted future independent hardware study, baselines, evidence safeguards |
-| [`paper/paper.md`](paper/paper.md) | research report: definitions, hypotheses, methods, results, limitations, references |
-| [`experiments/V03_PREREGISTRATION.md`](experiments/V03_PREREGISTRATION.md) | v0.3 protocol (G, H, I and the hardware pilot P), committed before data |
-| [`results/V03_SUMMARY.md`](results/V03_SUMMARY.md), [`results/V03_TABLES.md`](results/V03_TABLES.md) | v0.3 results, every criterion, full tables |
-| [`experiments/v03/DEVELOPMENT_NOTES.md`](experiments/v03/DEVELOPMENT_NOTES.md) | development runs (seeds < 20 000) behind the v0.3 design choices |
-| [`experiments/V02_PREREGISTRATION.md`](experiments/V02_PREREGISTRATION.md) | v0.2 protocol, committed before data |
-| [`results/V02_SUMMARY.md`](results/V02_SUMMARY.md) | v0.2 results and the eight success questions |
-| [`docs/V01_AUDIT.md`](docs/V01_AUDIT.md), [`results/E2_CORRECTION.md`](results/E2_CORRECTION.md) | audit of v0.1 and the matched E2 re-analysis |
-| [`docs/SEQUENTIAL_METHODS.md`](docs/SEQUENTIAL_METHODS.md) | e-processes, budget, forecasts, what is and is not guaranteed |
-| [`docs/INVESTIGATION_V02.md`](docs/INVESTIGATION_V02.md) | Qiskit/Aer/Cirq/Stim/Runtime behaviour, with REA artifact evidence |
-| [`docs/HARDWARE_VALIDATION.md`](docs/HARDWARE_VALIDATION.md) | collaboration invitation, the read-only and separately authorized study phases, how to run Experiment P, and the limits of vendor calibration data |
-| [`docs/DESIGN.md`](docs/DESIGN.md), [`docs/INSPECTION_LOG.md`](docs/INSPECTION_LOG.md) | v0.1 design and framework inspection (kept as written) |
-| [`RELEASE_NOTES.md`](RELEASE_NOTES.md), [`CITATION.cff`](CITATION.cff) | changes and citation |
+| [Hardware addendum](docs/report/HARDWARE_ADDENDUM.md) | Accessible account of Experiment P and its failed assumption check |
+| [Technical report · PDF](docs/report/qnp-technical-report.pdf) | Original ten-page **simulation-only** report, preserved as written before Experiment P |
+| [Research paper](paper/paper.md) | Definitions, hypotheses, methods, results and limitations |
+| [v0.3 tables](results/V03_TABLES.md) / [v0.2 tables](results/V02_TABLES.md) | Detailed recorded outcomes |
+| [Evidence explorer guide](docs/EVIDENCE_EXPLORER.md) | Offline workflow, exports, verification scope and troubleshooting |
+| [Independent follow-up plan](experiments/P04_FOLLOWUP_PLAN.md) | Proposed development/holdout separation and conventional baselines; unexecuted |
+| [Framework investigation](docs/INVESTIGATION_V02.md) | Qiskit, Aer, Cirq, Stim and Runtime behavior, with REA evidence |
+| [Release notes](RELEASE_NOTES.md) | Method and tooling changes |
 
-## Citation
+Independent replication is welcome. A proposed 30-day read-only observation
+study would use authorized calibration records or exports to assess data
+quality and repeatability. Detection-accuracy claims require a separately
+defined independent reference. Neither proposed longer-term phase has started;
+no institutional partnership or endorsement is implied.
 
-See [`CITATION.cff`](CITATION.cff). Please also cite Qiskit, Qiskit Aer,
-Qiskit Experiments and Cirq. Native-artifact inspection used
+[Collaboration scope](docs/HARDWARE_VALIDATION.md) · [Open a discussion through an issue](https://github.com/topherchris420/quantum-noise-profiler/issues/new)
+
+Built by **Christopher Woodyard · Vers3Dynamics**. MIT licensed.
+See [CITATION.cff](CITATION.cff); please also credit the relevant Qiskit, Qiskit
+Aer, Qiskit Experiments and Cirq projects. Native-artifact inspection used
 [REA](https://github.com/morluto/rea).
-
-MIT licence.

@@ -1,5 +1,29 @@
 # Release notes
 
+## Unreleased: evidence explorer and explicit session guarantees
+
+- **Offline evidence explorer:** a responsive, self-contained HTML report with
+  selectable qubits, exact recorded counts, UTC batch inspection, historical
+  alerts, T1 abstention reasons, simulation criteria, and CSV/JSON exports.
+  No provider SDK, credentials, server, CDN or telemetry is required.
+- **Verified inputs:** the exporter requires existing manifest matches for all
+  displayed run entries and raw artifacts, recomputes probe rates and
+  homogeneity statistics from counts, and rejects simulated or incomplete
+  hardware evidence. Other summaries are explicitly labeled as recorded.
+- **Core-only CLI:** `qnp report` / `python -m qnp report` generates the explorer;
+  `qnp demo` emits a labeled synthetic session as strict JSON. The HTML template
+  ships inside the wheel and is exercised by the clean-install CI job.
+- **Budget reporting corrected:** a family exceeding its declaration now marks
+  every channel and alert `unavailable:family_exceeded`, preserving its nominal
+  guarantee separately. Empty/withheld-only inspections no longer freeze the
+  inferred family. Non-finite shares and boolean dimensions are rejected.
+- **Session export:** `Profiler.session_report()` includes family status,
+  notices, per-group evidence and latest estimates. Non-finite diagnostics are
+  represented as JSON null without changing the existing numerical report APIs.
+- **Research outcomes preserved:** original runs, criteria, thresholds, raw
+  evidence and the historical report are unchanged. P.C1 remains failed, P.C2
+  passed, and the hardware alerts' true/false labels remain unknown.
+
 ## Unreleased: post-P research integrity and safety hardening
 
 - **Research record:** synchronized README, paper and `CITATION.cff` with
