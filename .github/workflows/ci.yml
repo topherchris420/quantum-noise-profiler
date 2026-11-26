@@ -53,7 +53,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.10"}
       - run: pip install uv
-      - run: uv pip install --system --resolution lowest-direct -e ".[dev]"
+      - run: uv pip install --system --resolution lowest-direct --build-constraints .github/constraints/min-deps-build.txt -e ".[dev]"
       - run: pip list | grep -Ei "^(numpy|scipy|qiskit|qiskit-aer|cirq-core) "
       - run: pytest -q -p no:cacheprovider tests/test_sequential.py tests/test_models_validation.py tests/test_forecast.py tests/test_measured_diagnostics.py tests/test_inferred_qiskit.py tests/test_sweep_design.py tests/test_readout_probes.py
 

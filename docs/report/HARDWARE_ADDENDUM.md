@@ -44,6 +44,35 @@ This series rejects a constant binomial rate very strongly (G = 138.89 on 11 deg
 
 The six rejecting series had G/degrees-of-freedom between **2.3 and 12.6**. A simple fixed-rate sampling model can therefore understate expected variations and make some alerts overconfident.
 
+## Post hoc cross-series dependence check
+
+The [frozen preregistration](../../experiments/V03_PREREGISTRATION.md#5-experiment-p--hardware-pilot-ibm-quantum)
+uses about 0.004 as the null probability of at least two rejections among ten.
+The binomial calculation assumes independent rejection indicators (and
+marginal size 0.01 for equality). Independence was not established: the five
+qubits shared each probe circuit. The threshold of at most one rejection and
+both registered outcomes remain unchanged.
+
+Under the complete constant-binomial-rate null, **if** each marginal G-test
+has size at most 0.01, the expected number of rejections is at most 0.10
+regardless of cross-series dependence. Markov's inequality therefore bounds
+the probability of at least two rejections by 0.05, and of **at least the six
+observed** by 0.0167. Independently of that count bound, [Holm's
+procedure](https://www.jstor.org/stable/4615733) at family alpha 0.05 rejects
+the same six series when applied to the stored marginal p-values. The two
+calculations interrogate the same pilot, not separate evidence.
+
+Both checks depend on calibration of the marginal tests. The p-values use
+an asymptotic chi-square reference, and neither adjustment validates that
+reference with sparse counts, establishes within-series independence, or
+identifies a physical mechanism. This is exploratory sensitivity analysis,
+not a new confirmatory result. Reproduce it from the archived run index
+without a QPU:
+
+```sh
+python tools/pilot_diagnostics.py --run-id V03_P_pilot-20261013T234830-220ff3
+```
+
 ## Additional observations, not pass/fail criteria
 
 - **T1 measurement gate:** 7 of 10 estimates accepted, 3 abstained or rejected due to insufficient evidence or model misspecification.

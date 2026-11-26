@@ -1,0 +1,3 @@
+# Legacy IBM SDK source releases import pkg_resources while building.
+# setuptools 82 removed it. This only constrains isolated builds in min-deps.
+setuptools<82
