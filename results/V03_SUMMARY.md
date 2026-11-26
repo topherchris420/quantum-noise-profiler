@@ -76,9 +76,12 @@ The pilot checks two assumptions of the method:
 | P.C1 probe series (5 qubits × 2 preparations) rejecting one constant rate across 12 batches (G-test, α = 0.01) | 6 of 10 | ≤ 1 | **FAIL** |
 | P.C2 T1 sweeps (5 qubits × 2) whose interleaved ground references disagree (α = 0.01) | 0 of 10 | ≤ 1 | PASS |
 
-**P.C1: readout fluctuates between batches by more than binomial noise.**
-Under the null, two or more rejections out of 10 has probability about
-0.004; six were observed.
+**P.C1: the constant-binomial-rate model failed across batches.**
+The preregistration's probability of about 0.004 for two or more rejections
+out of ten is an independence reference, not a calibrated probability for
+these shared-circuit probes. Six rejections were observed under the
+unchanged preregistered rule. See the [post hoc dependence
+check](../docs/report/HARDWARE_ADDENDUM.md#post-hoc-cross-series-dependence-check).
 
 - **Rejected series:** qubit 54 p(0\|1), 108 p(1\|0), 108 p(0\|1), 127
   p(0\|1), 59 p(1\|0) and 87 p(1\|0).
@@ -91,7 +94,7 @@ Under the null, two or more rejections out of 10 has probability about
   hold. Before deployment there, the monitor needs a fluctuation model or a
   larger effect gate.
 
-**P.C2: no readout drift within a job.** In all 10 sweeps the interleaved
+**P.C2: within-job readout drift was not detected.** In all 10 sweeps the interleaved
 ground references agree (smallest p = 0.085). The failure mode that the
 v0.3 design guards against did not occur in this run.
 
@@ -342,7 +345,7 @@ This updates `results/V02_SUMMARY.md` §8.
      10 series overdispersed);
    - batch independence was not tested separately: overdispersion can come
      from a changing rate or from correlated batches;
-   - readout stability within a job **held** (P.C2: 0 of 10 sweeps).
+   - within-job nonhomogeneity was **not detected** (P.C2: 0 of 10 sweeps).
 
    One device, five qubits and two hours do not show how general either
    finding is.

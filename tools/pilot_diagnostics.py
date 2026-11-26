@@ -43,6 +43,32 @@ def describe_rates(rates: list[float], shots_per_batch: int = 4000) -> dict:
     }
 
 
+def multiplicity_sensitivity(p_values: dict[str, float], marginal_alpha: float = 0.01) -> dict:
+    """Post hoc P.C1 checks, conditional on valid marginal p-values."""
+    if len(p_values) < 2 or not 0 < marginal_alpha < 1:
+        raise ValueError("provide at least two p-values and a marginal alpha in (0, 1)")
+    if any(not 0 <= p <= 1 for p in p_values.values()):
+        raise ValueError("p-values must be finite and in [0, 1]")
+
+    n = len(p_values)
+    adjusted = {}
+    running = 0.0
+    for rank, (label, p_value) in enumerate(sorted(p_values.items(), key=lambda item: (item[1], item[0]))):
+        running = max(running, min(1.0, (n - rank) * p_value))
+        adjusted[label] = running
+
+    rejected = sum(p < marginal_alpha for p in p_values.values())
+    return {
+        "n": n,
+        "observed_rejections": rejected,
+        "independence_reference_at_least_two": math.fsum(
+            math.comb(n, k) * marginal_alpha**k * (1 - marginal_alpha) ** (n - k) for k in range(2, n + 1)
+        ),
+        "markov_upper_at_observed": min(1.0, n * marginal_alpha / rejected) if rejected else 1.0,
+        "holm_adjusted_p_values": adjusted,
+    }
+
+
 def load_hardware_pilot(path: Path, run_id: str | None = None) -> dict:
     if not path.is_file():
         raise FileNotFoundError(f"missing {path}; no pilot entries available")
@@ -86,6 +112,16 @@ def main(argv=None) -> None:
             f"{label} | {100 * d['mean']:.3f} | {100 * d['min']:.3f} | {100 * d['max']:.3f} | "
             f"{ratio} | {lag1} | {value['dispersion']:.2f} | {value['p']:.3g}"
         )
+    multiplicity = multiplicity_sensitivity({key: value["p"] for key, value in s["P1_probe_homogeneity"].items()})
+    holm_rejections = sum(p <= 0.05 for p in multiplicity["holm_adjusted_p_values"].values())
+    print(
+        f"EXPLORATORY multiplicity: independence reference for >=2 rejections "
+        f"{multiplicity['independence_reference_at_least_two']:.6f}; Markov bound at "
+        f"{multiplicity['observed_rejections']} observed rejections "
+        f"{multiplicity['markov_upper_at_observed']:.6f}; Holm at family alpha 0.05: "
+        f"{holm_rejections}/{multiplicity['n']} rejected."
+    )
+    print("Requires valid marginal tests; cross-series correction does not check within-series assumptions.")
     print(
         "Neither a variance ratio nor a lag correlation establishes drift, detector accuracy, "
         "a physical mechanism, or an anytime-valid bound."
